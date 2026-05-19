@@ -1,9 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Force no caching globally — semua request selalu fresh dari server
-  fetchCache: "force-no-store",
-
   async headers() {
     return [
       {
@@ -19,3 +16,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+
