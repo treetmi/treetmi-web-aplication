@@ -6,7 +6,7 @@ import { io, Socket } from "socket.io-client"
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
 
-const BACKEND_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1").replace(/\/api.*$/, "")
+const BACKEND_URL = (process.env.NEXT_PUBLIC_API_URL || "https://api-system.treetmi.id/api/v1").replace(/\/api.*$/, "")
 import { API_BASE_URL } from "@/lib/api"
 const API_BASE = API_BASE_URL
 

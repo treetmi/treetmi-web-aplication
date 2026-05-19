@@ -3,7 +3,7 @@
  */
 
 // Centralized API Base URL - Change this single value or configure NEXT_PUBLIC_API_URL in .env to redirect all services.
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://api-system.treetmi.id/api/v1";
 
 /**
  * Drop-in replacement for fetch() that automatically retries on transient network failures
