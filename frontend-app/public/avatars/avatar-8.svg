@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <circle cx="50" cy="50" r="50" fill="#FFD551"/>
+  <!-- Ears -->
+  <circle cx="28" cy="36" r="10" fill="#1E1E1D"/>
+  <circle cx="72" cy="36" r="10" fill="#1E1E1D"/>
+  <circle cx="28" cy="36" r="6" fill="#FFFFFF"/>
+  <circle cx="72" cy="36" r="6" fill="#FFFFFF"/>
+  <!-- Head -->
+  <circle cx="50" cy="56" r="28" fill="#1E1E1D"/>
+  <!-- Snout -->
+  <ellipse cx="50" cy="65" rx="11" ry="8" fill="#FFFFFF"/>
+  <!-- Eyes -->
+  <circle cx="40" cy="50" r="3" fill="#FFFFFF"/>
+  <circle cx="60" cy="50" r="3" fill="#FFFFFF"/>
+  <circle cx="40" cy="50" r="1" fill="#1E1E1D"/>
+  <circle cx="60" cy="50" r="1" fill="#1E1E1D"/>
+  <!-- Nose/Mouth -->
+  <ellipse cx="50" cy="62" rx="3.5" ry="2.2" fill="#1E1E1D"/>
+  <path d="M47,67 Q50,70 53,67" stroke="#1E1E1D" stroke-width="1.5" fill="none"/>
+</svg>
