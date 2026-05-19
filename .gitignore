@@ -3,3 +3,22 @@ node_modules/
 .next/
 build/
 .DS_Store
+
+# Internal docs & planning files
+*.md
+!README.md
+.continue/
+Treetmi-Master Feature Plan
+
+# Zip files
+*.zip
+
+# Scratch/dev scripts
+scratch/
+*.bak
+refactor-hardcodes.js
+create-user.js
+get-otp.js
+seed-data.js
+test-db.js
+prisma.config.ts
