@@ -21,4 +21,4 @@ create-user.js
 get-otp.js
 seed-data.js
 test-db.js
-prisma.config.ts
+
