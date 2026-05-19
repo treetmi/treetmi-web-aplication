@@ -1,0 +1,434 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum TransactionType {
+  DONATION
+  MABAR
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum MediaType {
+  YOUTUBE
+  TIKTOK
+  REELS
+  TEBAK_GAMBAR
+  VOICE_NOTE
+}
+
+enum MediaStatus {
+  PENDING
+  PLAYING
+  COMPLETED
+  SKIPPED
+  BANNED
+}
+
+enum QueueStatus {
+  WAITING
+  PLAYING
+  DONE
+  SKIPPED
+}
+
+enum PackageStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model User {
+  id            String        @id @default(uuid()) @db.Uuid
+  username      String        @unique
+  email         String        @unique
+  email_verified Boolean       @default(false)
+  otp_code      String?
+  otp_expires   DateTime?
+  balance       Decimal       @default(0.00) @db.Decimal(12, 2)
+  widget_token  String        @unique @default(uuid())
+  
+  // Fitur Pengaturan Dashboard & Visual Streamer
+  avatar_url    String?       // Untuk foto profil/logo streamer
+  banner_url    String?       // Untuk foto banner profil kustom streamer
+  bio           String?       @db.VarChar(500) // Custom Bio / Misi / Status Kreator
+  
+  // Link Media Sosial
+  youtube_url   String?
+  discord_url   String?
+  facebook_url  String?
+  twitch_url    String?
+  tiktok_url    String?
+  instagram_url String?
+  website_url   String?
+  
+  is_live       Boolean       @default(false)
+  role_title    String        @default("STREAMER & KREATOR")
+  is_verified   Boolean       @default(false)
+  status        String        @default("ACTIVE")
+  verification_status String       @default("NONE") // NONE, PENDING, VERIFIED, REJECTED
+  verification_token  String?      // Token verifikasi unik
+  verification_submitted_at DateTime?
+  verification_screenshot_url String? // Screenshot bukti kepemilikan akun sosial media
+  verification_platform String?    // Platform yang dibuktikan (YOUTUBE, TIKTOK, INSTAGAM, dll)
+  verification_message String?     @db.VarChar(500) // Pesan opsional dari user untuk admin
+  verification_reject_reason String? @db.VarChar(500) // Alasan penolakan dari admin
+  
+  // Custom Target Goals & Visibility Toggles
+  target_title  String?       @default("Target Server & Course Gratis")
+  target_amount Decimal?      @default(10000000.00) @db.Decimal(12, 2)
+  show_target   Boolean       @default(true)
+  show_queue    Boolean       @default(true)
+  show_reviews  Boolean       @default(true)
+  show_calendar Boolean       @default(false)
+  show_services Boolean       @default(true)
+  
+  // Custom CTA Button Titles
+  service_btn_title   String?   @default("AJAK MAIN BARENG")
+  service_btn_subtitle String?  @default("(JASA MABAR)")
+  support_btn_title   String?   @default("KIRIM DUKUNGAN")
+  support_btn_subtitle String?  @default("(DONASI)")
+  
+  mabar_promo_buy     Int       @default(0)
+  mabar_promo_get     Int       @default(0)
+  
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  game_packages   GamePackage[]
+  transactions    Transaction[] @relation("StreamerTransactions")
+  bank_account    BankAccount?
+  withdrawals     Withdrawal[]
+  project_assets  ProjectAsset[]
+  widget_setting  WidgetSetting?
+  creator_media_setting CreatorMediaSetting?
+  live_schedules  LiveSchedule[]
+  support_tickets SupportTicket[]
+  schedule_title  String?        @default("Jadwal Live Streaming")
+
+  @@map("users")
+}
+
+model WidgetSetting {
+  id                 String   @id @default(uuid()) @db.Uuid
+  streamer_id        String   @unique @db.Uuid
+
+  // Alert Colors
+  color_donation     String   @default("#FFD551")
+  color_mabar        String   @default("#34d399")
+
+  // TTS Settings
+  tts_enabled        Boolean  @default(true)
+  tts_speed          Float    @default(1.0)
+  tts_pitch          Float    @default(1.1)
+
+  // Alert display duration (seconds after TTS finishes)
+  alert_duration_sec Int      @default(5)
+
+  // Sound Tiers (JSON array of tier objects)
+  sound_tiers        Json     @default("[{\"min\":0,\"max\":25000,\"prefix\":\"\",\"sound_key\":\"coin\"},{\"min\":25000,\"max\":100000,\"prefix\":\"Wow\",\"sound_key\":\"bell\"},{\"min\":100000,\"max\":1000000,\"prefix\":\"Mantap Bro\",\"sound_key\":\"fanfare\"},{\"min\":1000000,\"max\":null,\"prefix\":\"Gile Bro\",\"sound_key\":\"epic\"}]")
+
+  // Custom uploaded sound
+  coin_sound_key     String   @default("coin")
+  coin_sound_url     String?
+
+  mediashare_enabled     Boolean  @default(true)
+  mediashare_min_donation Decimal  @default(15000.00) @db.Decimal(12, 2)
+
+  show_queue_ticker      Boolean  @default(true)
+  show_donors_overlay    Boolean  @default(true)
+  show_target_overlay    Boolean  @default(true)
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  streamer           User     @relation(fields: [streamer_id], references: [id], onDelete: Cascade)
+
+  @@map("widget_settings")
+}
+
+model GamePackage {
+  id             String        @id @default(uuid()) @db.Uuid
+  streamer_id    String        @db.Uuid
+  game_name      String
+  price_per_slot Decimal       @db.Decimal(10, 2)
+  status         PackageStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Relations
+  streamer       User          @relation(fields: [streamer_id], references: [id], onDelete: Cascade)
+  mabar_queues   MabarQueue[]
+
+  @@map("game_packages")
+}
+
+model Transaction {
+  id            String            @id @default(uuid()) @db.Uuid
+  reference_id  String?           @unique // ID dari Midtrans/Xendit
+  streamer_id   String            @db.Uuid
+  sender_name   String            @default("Anonymous")
+  sender_email  String?           // Email supporter untuk verifikasi akses proyek digital
+  original_amount Decimal?        @db.Decimal(12, 2)
+  currency_code   String?         @default("IDR")
+  gross_amount  Decimal           @db.Decimal(12, 2)
+  platform_fee  Decimal           @db.Decimal(12, 2)
+  net_amount    Decimal           @db.Decimal(12, 2)
+  type          TransactionType
+  status        TransactionStatus @default(PENDING)
+  message       String?           @db.VarChar(500) // Pesan donasi/mabar
+  mediashare_url  String?           @db.VarChar(500)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  // Relations
+  streamer      User              @relation("StreamerTransactions", fields: [streamer_id], references: [id], onDelete: Cascade)
+  mabar_queue   MabarQueue?
+  donation_media DonationMedia?
+
+  @@map("transactions")
+}
+
+model MabarQueue {
+  id               String      @id @default(uuid()) @db.Uuid
+  transaction_id   String      @unique @db.Uuid
+  package_id       String      @db.Uuid
+  ingame_nickname  String
+  ingame_id        String
+  status           QueueStatus @default(WAITING)
+  slots_count      Int         @default(1)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  // Relations
+  transaction      Transaction @relation(fields: [transaction_id], references: [id], onDelete: Cascade)
+  game_package     GamePackage @relation(fields: [package_id], references: [id], onDelete: Restrict)
+
+  @@map("mabar_queues")
+}
+
+model BankAccount {
+  id                  String   @id @default(uuid()) @db.Uuid
+  streamer_id         String   @unique @db.Uuid
+  bank_name           String   // e.g., "BCA", "MANDIRI", "GOPAY"
+  account_number      String
+  account_holder_name String
+  is_locked           Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relations
+  streamer            User     @relation(fields: [streamer_id], references: [id], onDelete: Cascade)
+
+  @@map("bank_accounts")
+}
+
+model Withdrawal {
+  id               String           @id @default(uuid()) @db.Uuid
+  streamer_id      String           @db.Uuid
+  amount_requested Decimal          @db.Decimal(12, 2)
+  disbursement_fee Decimal          @default(5000.00) @db.Decimal(10, 2) // Biaya transfer bank
+  status           WithdrawalStatus @default(PENDING)
+  reference_id     String?          @unique // ID penarikan dari payment gateway
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  // Relations
+  streamer         User             @relation(fields: [streamer_id], references: [id], onDelete: Cascade)
+
+  @@map("withdrawals")
+}
+
+model SiteSetting {
+  id        String   @id @default(uuid()) @db.Uuid
+  logoText  String   @default("treetmi")
+  logoUrl   String   @default("")
+  iconUrl   String   @default("")
+  companyName String @default("PT Asosiasi Karya Treetmi")
+  seoTitle  String   @default("Treetmi.id - Platform Dukungan Kreator Terbesar di Indonesia")
+  metaDesc  String   @default("Beri dukungan langsung berupa donasi, mabar, dan jasa murni kepada streamer, game developer, dan designer favoritmu dengan fee potongan terendah.")
+  keywords  String   @default("donasi, creator platform, streamer, game developer, coder, designer, treetmi, mabar")
+  feeDonation Decimal  @default(5.00) @db.Decimal(5, 2)
+  feeMabar    Decimal  @default(8.00) @db.Decimal(5, 2)
+  ahuNumber   String   @default("")
+  pseNumber   String   @default("")
+  nibNumber   String   @default("")
+  paymentGateway      String   @default("MIDTRANS")
+  paymentSandbox      Boolean  @default(true)
+  midtransMerchantId  String   @default("")
+  midtransClientKey   String   @default("")
+  midtransServerKey   String   @default("")
+  xenditApiKey        String   @default("")
+  discordUrl          String   @default("")
+  xUrl                String   @default("")
+  instagramUrl        String   @default("")
+  tiktokUrl           String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
+model Avatar {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  url       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("avatars")
+}
+
+model ProjectAsset {
+  id             String   @id @default(uuid()) @db.Uuid
+  streamer_id    String   @db.Uuid
+  title          String
+  description    String?  @db.VarChar(1000)
+  file_url       String   // Tautan eksternal aman (Drive, Figma, GitHub, dll.)
+  min_support    Decimal  @db.Decimal(12, 2) // Minimal dukungan rupiah untuk membuka tautan
+  download_count Int      @default(0)
+  deleted_at     DateTime? // Soft delete timestamp
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  streamer       User     @relation(fields: [streamer_id], references: [id], onDelete: Cascade)
+
+  @@map("project_assets")
+}
+
+enum TicketStatus {
+  OPEN          // Tiket baru masuk, belum dilihat admin
+  DI_BACA       // Admin sudah membuka & membaca tiket
+  DI_JAWAB      // Admin sudah membalas tiket
+}
+
+enum TicketCategory {
+  BANK_CHANGE      // Permohonan ganti rekening
+  WITHDRAWAL_ISSUE // Masalah penarikan
+  OTHER            // Lainnya
+}
+
+model SupportTicket {
+  id          String         @id @default(uuid()) @db.Uuid
+  streamer_id String         @db.Uuid
+  category    TicketCategory @default(OTHER)
+  subject     String
+  description String         @db.VarChar(2000)
+  status      TicketStatus   @default(OPEN)   // OPEN → DI_BACA → DI_JAWAB
+  admin_reply String?        @db.VarChar(2000) // Diisi admin saat status = DI_JAWAB
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  streamer    User           @relation(fields: [streamer_id], references: [id], onDelete: Cascade)
+  @@map("support_tickets")
+}
+
+model LiveSchedule {
+  id          String   @id @default(uuid()) @db.Uuid
+  streamer_id String   @db.Uuid
+  title       String                    // "Portfolio Roast & Feedback Session"
+  category    String                    // Tag bebas: "ART", "CODING", "GAME", dll.
+  date        DateTime                  // Tanggal & jam live
+  description String?  @db.VarChar(500) // Deskripsi singkat acara
+  is_active   Boolean  @default(true)   // Bisa di-hide tanpa dihapus
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  streamer    User     @relation(fields: [streamer_id], references: [id], onDelete: Cascade)
+  @@map("live_schedules")
+}
+
+model PaymentChannel {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   // e.g., "BCA", "Gopay", "OVO"
+  code      String   @unique // e.g., "bca", "gopay", "ovo"
+  logoUrl   String   // file upload path
+  minFee    Decimal  @default(0.00) @db.Decimal(12, 2)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("payment_channels")
+}
+
+model TrustBadge {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String   @unique
+  min_supporters Int
+  badge_url      String   @db.Text
+  bg_class       String
+  glow_class     String
+  icon_class     String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("trust_badges")
+}
+
+model DonationMedia {
+  id                String      @id @default(uuid()) @db.Uuid
+  transaction_id    String      @unique @db.Uuid
+  media_type        MediaType
+  media_url         String?     @db.Text
+  start_time        Int         @default(0)
+  duration          Int         @default(0)
+  volume_multiplier Float       @default(1.0)
+  status            MediaStatus @default(PENDING)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  transaction       Transaction @relation(fields: [transaction_id], references: [id], onDelete: Cascade)
+
+  @@map("donation_media")
+}
+
+model CreatorMediaSetting {
+  id                     String   @id @default(uuid()) @db.Uuid
+  streamer_id            String   @unique @db.Uuid
+  global_toggle          Boolean  @default(true)
+  youtube_toggle         Boolean  @default(true)
+  tiktok_toggle          Boolean  @default(true)
+  reels_toggle           Boolean  @default(true)
+  tebak_gambar_toggle    Boolean  @default(true)
+  voice_note_toggle      Boolean  @default(true)
+  max_duration           Int      @default(300) // 5 minutes max default
+  min_amount_per_second  Decimal  @default(100.00) @db.Decimal(12, 2)
+  profanity_filter       Boolean  @default(true)
+  elevenlabs_api_key     String?  @db.VarChar(500)
+  use_elevenlabs         Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  streamer               User     @relation(fields: [streamer_id], references: [id], onDelete: Cascade)
+
+  @@map("creator_media_settings")
+}
+
+model Partner {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  logo_url  String
+  link_url  String?
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("partners")
+}
