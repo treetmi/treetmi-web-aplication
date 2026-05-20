@@ -1,7 +1,9 @@
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const { Pool } = require('pg');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+
 
 /**
  * Inisialisasi Prisma Client dengan Driver Adapter (Wajib di Prisma 7 
