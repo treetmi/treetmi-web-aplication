@@ -31,6 +31,12 @@ interface AlertItem {
     start_time?: number
     volume_multiplier?: number
   } | null
+  gift?: {
+    id: string
+    name: string
+    url: string
+    price?: number
+  } | null
 }
 
 interface SoundTier { min: number; max: number | null; prefix: string; sound_key: string; gif_key?: string; gif_url?: string | null }
@@ -88,6 +94,11 @@ function parseMabarMessage(message: string | null | undefined) {
   }
 
   return { nickname, ingame_id, cleanMessage }
+}
+
+function cleanGiftMessage(message: string | null | undefined): string {
+  if (!message) return ""
+  return message.replace(/\[GIFT:\s*[^\]]+\]/gi, "").trim()
 }
 
 function WidgetAlertContent() {
@@ -273,7 +284,8 @@ function WidgetAlertContent() {
         return
       }
       window.speechSynthesis.cancel()
-      const utterance = new SpeechSynthesisUtterance(text)
+      const cleanText = text.replace(/\*+/g, " bip ")
+      const utterance = new SpeechSynthesisUtterance(cleanText)
       utterance.lang = "id-ID"
 
       const voices = window.speechSynthesis.getVoices()
@@ -358,20 +370,32 @@ function WidgetAlertContent() {
     const alert = alertQueueRef.current.shift()!
     setCurrentAlert(alert)
 
-    // Resolve GIF berdasarkan tier
-    const tiers = (widgetSettingsRef.current?.sound_tiers || []) as SoundTier[]
-    const DEFAULT_GIF_KEYS = ['coin', 'wallet_fly', 'wallet_anim', 'coin_wallet']
-    const matchedTier = tiers.find((t: SoundTier) => alert.gross_amount >= t.min && (t.max === null || alert.gross_amount < t.max))
-    const tierIndex = matchedTier ? tiers.indexOf(matchedTier) : 0
-    if (matchedTier && matchedTier.gif_key) {
-      if (matchedTier.gif_key === "custom" && matchedTier.gif_url) {
-        setCurrentGifSrc(matchedTier.gif_url)
-      } else {
-        setCurrentGifSrc(BUILTIN_GIFS[matchedTier.gif_key] || BUILTIN_GIFS.coin)
-      }
+    // Resolve GIF berdasarkan tier atau custom GIFT tag
+    let customGiftKey: string | null = null
+    const giftMatch = alert.message?.match(/\[GIFT:\s*([^\]]+)\]/i)
+    if (giftMatch) {
+      customGiftKey = giftMatch[1].trim()
+    }
+
+    if (alert.gift?.url) {
+      setCurrentGifSrc(alert.gift.url)
+    } else if (customGiftKey && BUILTIN_GIFS[customGiftKey]) {
+      setCurrentGifSrc(BUILTIN_GIFS[customGiftKey])
     } else {
-      // Fallback: pakai default berdasarkan index tier
-      setCurrentGifSrc(BUILTIN_GIFS[DEFAULT_GIF_KEYS[tierIndex]] || BUILTIN_GIFS.coin)
+      const tiers = (widgetSettingsRef.current?.sound_tiers || []) as SoundTier[]
+      const DEFAULT_GIF_KEYS = ['coin', 'wallet_fly', 'wallet_anim', 'coin_wallet']
+      const matchedTier = tiers.find((t: SoundTier) => alert.gross_amount >= t.min && (t.max === null || alert.gross_amount < t.max))
+      const tierIndex = matchedTier ? tiers.indexOf(matchedTier) : 0
+      if (matchedTier && matchedTier.gif_key) {
+        if (matchedTier.gif_key === "custom" && matchedTier.gif_url) {
+          setCurrentGifSrc(matchedTier.gif_url)
+        } else {
+          setCurrentGifSrc(BUILTIN_GIFS[matchedTier.gif_key] || BUILTIN_GIFS.coin)
+        }
+      } else {
+        // Fallback: pakai default berdasarkan index tier
+        setCurrentGifSrc(BUILTIN_GIFS[DEFAULT_GIF_KEYS[tierIndex]] || BUILTIN_GIFS.coin)
+      }
     }
 
     // Susun kalimat TTS dengan pelafalan mata uang asing asli
@@ -404,7 +428,8 @@ function WidgetAlertContent() {
         ttsText = `Halo ${alert.sender_name}! Mengirimkan tebak gambar sebesar ${amountFormatted}. Silakan mulai tebak gambarnya!`
       } else {
         ttsText = `Halo ${alert.sender_name}! Terima kasih atas donasi sebesar ${amountFormatted}.`
-        if (alert.message?.trim()) ttsText += ` Pesan: ${alert.message}`
+        const cleanMsg = cleanGiftMessage(alert.message)
+        if (cleanMsg.trim()) ttsText += ` Pesan: ${cleanMsg}`
       }
     } else {
       const parsed = parseMabarMessage(alert.message)
@@ -519,21 +544,21 @@ function WidgetAlertContent() {
         socketRef.current = socket
         socket.on("connect", () => {
           setIsConnected(true)
-          socket.emit("join-streamer", info.streamer_id)
           socket.emit("join-room", `alert:${info.streamer_id}`)
         })
         socket.on("disconnect", () => setIsConnected(false))
         socket.on("alert:donation", (data: any) => {
           if (onlyCall) return // IGNORE in onlyCall mode
+          if (data.gacha) return // GACHA is handled exclusively by Gacha Widget overlay!
           const isVideoMedia = data.donation_media && ["YOUTUBE", "TIKTOK", "REELS"].includes(data.donation_media.media_type)
           if (data.mediashare_url || isVideoMedia) return // Mediashare handled by separate overlay
-          enqueueAlertRef.current({ id: `don-${Date.now()}`, type: "DONATION", sender_name: data.sender_name, gross_amount: data.gross_amount, original_amount: data.original_amount, currency_code: data.currency_code, message: data.message || "", timestamp: new Date(data.timestamp), mediashare_url: data.mediashare_url, donation_media: data.donation_media || null })
+          enqueueAlertRef.current({ id: `don-${Date.now()}`, type: "DONATION", sender_name: data.sender_name, gross_amount: data.gross_amount, original_amount: data.original_amount, currency_code: data.currency_code, message: data.message || "", timestamp: new Date(data.timestamp), mediashare_url: data.mediashare_url, donation_media: data.donation_media || null, gift: data.gift || null })
         })
         socket.on("alert:mabar", (data: any) => {
           if (onlyCall) return // IGNORE in onlyCall mode
           const isVideoMedia = data.donation_media && ["YOUTUBE", "TIKTOK", "REELS"].includes(data.donation_media.media_type)
           if (data.mediashare_url || isVideoMedia) return // Mediashare handled by separate overlay
-          enqueueAlertRef.current({ id: `mab-${Date.now()}`, type: "MABAR", sender_name: data.sender_name, gross_amount: data.gross_amount, original_amount: data.original_amount, currency_code: data.currency_code, message: data.message || "", game_name: data.game_name, ingame_nickname: data.ingame_nickname, ingame_id: data.ingame_id, timestamp: new Date(data.timestamp), mediashare_url: data.mediashare_url, donation_media: data.donation_media || null })
+          enqueueAlertRef.current({ id: `mab-${Date.now()}`, type: "MABAR", sender_name: data.sender_name, gross_amount: data.gross_amount, original_amount: data.original_amount, currency_code: data.currency_code, message: data.message || "", game_name: data.game_name, ingame_nickname: data.ingame_nickname, ingame_id: data.ingame_id, timestamp: new Date(data.timestamp), mediashare_url: data.mediashare_url, donation_media: data.donation_media || null, gift: data.gift || null })
         })
         socket.on("alert:queue-call", (data: any) => {
           if (excludeCall) return // IGNORE in excludeCall mode
@@ -601,7 +626,7 @@ function WidgetAlertContent() {
     : { nickname: "", ingame_id: "", cleanMessage: "" }
 
   const displayMessage = currentAlert 
-    ? (currentAlert.type === "MABAR" ? parsedMabar.cleanMessage : currentAlert.message)
+    ? cleanGiftMessage(currentAlert.type === "MABAR" ? parsedMabar.cleanMessage : currentAlert.message)
     : ""
   
   const displayNickname = currentAlert 

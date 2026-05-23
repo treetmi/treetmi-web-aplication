@@ -6,6 +6,8 @@ import { CurrencyProvider } from "@/components/currency-provider";
 import { SessionProvider } from "@/components/session-provider";
 import { BrandingProvider } from "@/components/branding-provider";
 import { Toaster } from "@/components/ui/sonner";
+import FloatingSupport from "@/components/floating-support";
+import LiveDonationFeed from "@/components/live-donation-feed";
 
 export const metadata: Metadata = {
   title: "Treetmi.id | Platform Dukungan Kreator Indonesia",
@@ -38,6 +40,8 @@ export default function RootLayout({
                 <BrandingProvider>
                   {children}
                   <Toaster position="top-center" />
+                  <FloatingSupport />
+                  <LiveDonationFeed />
                 </BrandingProvider>
               </CurrencyProvider>
             </LanguageProvider>

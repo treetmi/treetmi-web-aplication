@@ -88,9 +88,8 @@ exports.testAlert = async (req, res) => {
         timestamp: new Date().toISOString()
       };
 
-      io.to(streamerId).emit('alert:mediashare', payload);
       io.to(`mediashare:${streamerId}`).emit('alert:mediashare', payload);
-      console.log(`[Widget] Test mediashare alert dikirim ke room ${streamerId}`);
+      console.log(`[Widget] Test mediashare alert dikirim ke room mediashare:${streamerId}`);
     } else {
       const eventName = type === 'MABAR' ? 'alert:mabar' : 'alert:donation';
       const payload = {
@@ -105,9 +104,8 @@ exports.testAlert = async (req, res) => {
         timestamp: new Date().toISOString()
       };
 
-      io.to(streamerId).emit(eventName, payload);
       io.to(`alert:${streamerId}`).emit(eventName, payload);
-      console.log(`[Widget] Test alert ${type} dikirim ke room ${streamerId}`);
+      console.log(`[Widget] Test alert ${type} dikirim ke room alert:${streamerId}`);
     }
 
     res.json({ success: true, message: 'Test alert berhasil dikirim ke overlay!' });

@@ -15,7 +15,11 @@ import {
   MessageSquare,
   CreditCard,
   Award,
-  Handshake
+  Handshake,
+  Ban,
+  Gift,
+  Crown,
+  ShieldCheck
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -125,157 +129,264 @@ export default function SidebarNav({
         </div>
 
         {/* Sidebar Nav link collection */}
-        <nav className="space-y-1">
-          <button 
-            onClick={() => handleTabChange("overview")}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black italic transition-all border ${
-              activeTab === "overview" 
-                ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
-                : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
-            }`}
-          >
-            <LayoutDashboard className="h-4 w-4" />
-            Sistem Ringkasan
-          </button>
-          
-          <button 
-            onClick={() => handleTabChange("creators")}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black italic transition-all border ${
-              activeTab === "creators" 
-                ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
-                : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
-            }`}
-          >
-            <Users className="h-4 w-4" />
-            Direktori Kreator
-          </button>
+        <nav className="space-y-5">
+          {/* Category 1: Dashboard & Finansial */}
+          <div className="space-y-1.5">
+            <div className="px-4 py-0.5 text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500 italic select-none">
+              Dashboard & Finansial
+            </div>
+            <div className="space-y-1">
+              <button 
+                onClick={() => handleTabChange("overview")}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-black italic transition-all border ${
+                  activeTab === "overview" 
+                    ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
+                    : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                <LayoutDashboard className="h-4 w-4 shrink-0" />
+                Sistem Ringkasan
+              </button>
 
-          <button 
-            onClick={() => handleTabChange("withdrawals")}
-            className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-black italic transition-all border ${
-              activeTab === "withdrawals" 
-                ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
-                : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
-            }`}
-          >
-            <span className="flex items-center gap-3">
-              <Wallet className="h-4 w-4" />
-              Approval Tarik Dana
-            </span>
-            {pendingWithdrawalsCount > 0 && (
-              <Badge className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-black animate-pulse border-none">
-                {pendingWithdrawalsCount}
-              </Badge>
-            )}
-          </button>
+              <button 
+                onClick={() => handleTabChange("transactions")}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-black italic transition-all border ${
+                  activeTab === "transactions" 
+                    ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
+                    : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                <FileSpreadsheet className="h-4 w-4 shrink-0" />
+                Arus Transaksi Global
+              </button>
 
-          <button 
-            onClick={() => handleTabChange("transactions")}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black italic transition-all border ${
-              activeTab === "transactions" 
-                ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
-                : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
-            }`}
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            Arus Transaksi Global
-          </button>
+              <button 
+                onClick={() => handleTabChange("withdrawals")}
+                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-2xl text-xs font-black italic transition-all border ${
+                  activeTab === "withdrawals" 
+                    ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
+                    : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                <span className="flex items-center gap-3">
+                  <Wallet className="h-4 w-4 shrink-0" />
+                  Approval Tarik Dana
+                </span>
+                {pendingWithdrawalsCount > 0 && (
+                  <Badge className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-black animate-pulse border-none">
+                    {pendingWithdrawalsCount}
+                  </Badge>
+                )}
+              </button>
+            </div>
+          </div>
 
-          <button 
-            onClick={() => handleTabChange("tickets")}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black italic transition-all border ${
-              activeTab === "tickets" 
-                ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
-                : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
-            }`}
-          >
-            <MessageSquare className="h-4 w-4" />
-            Tiket Bantuan
-          </button>
+          {/* Category 2: Manajemen Kreator */}
+          <div className="space-y-1.5">
+            <div className="px-4 py-0.5 text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500 italic select-none">
+              Manajemen Kreator
+            </div>
+            <div className="space-y-1">
+              <button 
+                onClick={() => handleTabChange("creators")}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-black italic transition-all border ${
+                  activeTab === "creators" 
+                    ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
+                    : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                <Users className="h-4 w-4 shrink-0" />
+                Direktori Kreator
+              </button>
 
-          <button 
-            onClick={() => handleTabChange("profile")}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black italic transition-all border ${
-              activeTab === "profile" 
-                ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
-                : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
-            }`}
-          >
-            <UserCircle className="h-4 w-4" />
-            Profil Admin
-          </button>
+              <button 
+                onClick={() => handleTabChange("top_creators")}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-black italic transition-all border relative group overflow-hidden ${
+                  activeTab === "top_creators" 
+                    ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
+                    : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                <Crown className={`h-4 w-4 shrink-0 transition-all duration-300 ${activeTab === "top_creators" ? "animate-bounce text-amber-600" : "text-amber-500 group-hover:scale-110"}`} />
+                Top Kreator Teraktif
+                {activeTab !== "top_creators" && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-[#FFD551] rounded-full animate-ping opacity-75"></span>
+                )}
+              </button>
 
-          <button 
-            onClick={() => handleTabChange("avatars")}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black italic transition-all border ${
-               activeTab === "avatars" 
-                ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
-                : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
-            }`}
-          >
-            <Smile className="h-4 w-4" />
-            Manajemen Avatar
-          </button>
+              <button 
+                onClick={() => handleTabChange("tickets")}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-black italic transition-all border ${
+                  activeTab === "tickets" 
+                    ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
+                    : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                <MessageSquare className="h-4 w-4 shrink-0" />
+                Tiket Bantuan
+              </button>
 
-          <button 
-            onClick={() => handleTabChange("badges")}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black italic transition-all border ${
-               activeTab === "badges" 
-                ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
-                : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
-            }`}
-          >
-            <Award className="h-4 w-4" />
-            Lencana Level
-          </button>
+              <button 
+                onClick={() => handleTabChange("reports")}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-black italic transition-all border ${
+                  activeTab === "reports" 
+                    ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
+                    : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                <ShieldCheck className="h-4 w-4 shrink-0 text-red-500" />
+                Laporan Kreator
+              </button>
+            </div>
+          </div>
 
-          <button 
-            onClick={() => handleTabChange("rates")}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black italic transition-all border ${
-              activeTab === "rates" 
-                ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
-                : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
-            }`}
-          >
-            <Coins className="h-4 w-4" />
-            Kurs Mata Uang
-          </button>
+          {/* Category 3: Interaksi & Fitur */}
+          <div className="space-y-1.5">
+            <div className="px-4 py-0.5 text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500 italic select-none">
+              Interaksi & Fitur
+            </div>
+            <div className="space-y-1">
+              <button 
+                onClick={() => handleTabChange("gifts")}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-black italic transition-all border ${
+                  activeTab === "gifts" 
+                    ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
+                    : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                <Gift className="h-4 w-4 shrink-0" />
+                Sistem Gift Animasi
+              </button>
 
-          <button 
-            onClick={() => handleTabChange("payment_channels")}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black italic transition-all border ${
-              activeTab === "payment_channels" 
-                ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
-                : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
-            }`}
-          >
-            <CreditCard className="h-4 w-4" />
-            Metode Pembayaran
-          </button>
+              <button 
+                onClick={() => handleTabChange("badges")}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-black italic transition-all border ${
+                   activeTab === "badges" 
+                    ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
+                    : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                <Award className="h-4 w-4 shrink-0" />
+                Lencana Level
+              </button>
 
-          <button 
-            onClick={() => handleTabChange("partners")}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black italic transition-all border ${
-              activeTab === "partners" 
-                ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
-                : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
-            }`}
-          >
-            <Handshake className="h-4 w-4" />
-            Manajemen Partner
-          </button>
+              <button 
+                onClick={() => handleTabChange("avatars")}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-black italic transition-all border ${
+                   activeTab === "avatars" 
+                    ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
+                    : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                <Smile className="h-4 w-4 shrink-0" />
+                Manajemen Avatar
+              </button>
 
-          <button 
-            onClick={() => handleTabChange("settings")}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black italic transition-all border ${
-              activeTab === "settings" 
-                ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
-                : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
-            }`}
-          >
-            <Sliders className="h-4 w-4" />
-            Pengaturan Website
-          </button>
+              <button 
+                onClick={() => handleTabChange("filter_words")}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-black italic transition-all border ${
+                  activeTab === "filter_words" 
+                    ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
+                    : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                <Ban className="h-4 w-4 shrink-0" />
+                Filter Kata Sensor
+              </button>
+            </div>
+          </div>
+
+          {/* Category 4: Sistem & Konfigurasi */}
+          <div className="space-y-1.5">
+            <div className="px-4 py-0.5 text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-zinc-500 italic select-none">
+              Sistem & Konfigurasi
+            </div>
+            <div className="space-y-1">
+              <button 
+                onClick={() => handleTabChange("payment_channels")}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-black italic transition-all border ${
+                  activeTab === "payment_channels" 
+                    ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
+                    : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                <CreditCard className="h-4 w-4 shrink-0" />
+                Metode Pembayaran
+              </button>
+
+              <button 
+                onClick={() => handleTabChange("rates")}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-black italic transition-all border ${
+                  activeTab === "rates" 
+                    ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
+                    : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                <Coins className="h-4 w-4 shrink-0" />
+                Kurs Mata Uang
+              </button>
+
+              <button 
+                onClick={() => handleTabChange("partners")}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-black italic transition-all border ${
+                  activeTab === "partners" 
+                    ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
+                    : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                <Handshake className="h-4 w-4 shrink-0" />
+                Manajemen Partner
+              </button>
+
+              <button 
+                onClick={() => handleTabChange("settings")}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-black italic transition-all border ${
+                  activeTab === "settings" 
+                    ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
+                    : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                <Sliders className="h-4 w-4 shrink-0" />
+                Pengaturan Website
+              </button>
+
+              <button 
+                onClick={() => handleTabChange("system_configs")}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-black italic transition-all border ${
+                  activeTab === "system_configs" 
+                    ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
+                    : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                <Sliders className="h-4 w-4 shrink-0 text-amber-500 animate-pulse" />
+                Konfigurasi Gateway & Biaya
+              </button>
+
+              <button 
+                onClick={() => handleTabChange("whatsapp_logs")}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-black italic transition-all border ${
+                  activeTab === "whatsapp_logs" 
+                    ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
+                    : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                <MessageSquare className="h-4 w-4 shrink-0 text-emerald-500" />
+                Log Pengiriman WhatsApp
+              </button>
+
+              <button 
+                onClick={() => handleTabChange("profile")}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-xs font-black italic transition-all border ${
+                  activeTab === "profile" 
+                    ? "bg-[#FFD551] text-black border-[#FFD551] shadow-sm font-black" 
+                    : "text-slate-500 hover:bg-slate-50 hover:text-black border-transparent dark:text-zinc-400 dark:hover:bg-zinc-900"
+                }`}
+              >
+                <UserCircle className="h-4 w-4 shrink-0" />
+                Profil Admin
+              </button>
+            </div>
+          </div>
         </nav>
       </div>
 
@@ -291,7 +402,7 @@ export default function SidebarNav({
           <Dialog open={isSimulateTxOpen} onOpenChange={setIsSimulateTxOpen}>
             <DialogTrigger 
               render={
-                <Button size="sm" className="w-full text-xs font-black italic h-9 bg-black text-[#FFD551] border border-black hover:bg-slate-900 rounded-xl dark:bg-[#FFD551] dark:text-black dark:border-transparent transition-all cursor-pointer">
+                <Button size="sm" className="w-full text-xs font-black italic h-9 bg-[#FFD551] hover:bg-[#FFC83B] text-black border border-[#FFC83B] rounded-xl dark:border-transparent transition-all cursor-pointer">
                   <Plus className="mr-1 h-3.5 w-3.5" /> Transaksi Baru
                 </Button>
               }

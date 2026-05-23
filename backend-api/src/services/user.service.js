@@ -135,7 +135,19 @@ class UserService {
         bank_account: true,
         project_assets: true,
         widget_setting: true,
-        creator_media_setting: true
+        creator_media_setting: true,
+        gacha_setting: true,
+        gacha_wheel_items: {
+          orderBy: { createdAt: 'asc' }
+        },
+        gacha_logs: {
+          orderBy: { createdAt: 'desc' },
+          take: 10
+        },
+        soundboard_items: {
+          where: { is_active: true },
+          orderBy: { createdAt: 'asc' }
+        }
       }
     });
 
@@ -207,6 +219,83 @@ class UserService {
         take: 10
       });
       user.reviews = reviews;
+
+      // 1. Top Sultans All Time
+      const topSultansAllTime = await prisma.transaction.groupBy({
+        by: ['sender_name'],
+        where: {
+          streamer_id: user.id,
+          status: 'SUCCESS'
+        },
+        _sum: {
+          gross_amount: true
+        },
+        orderBy: {
+          _sum: {
+            gross_amount: 'desc'
+          }
+        },
+        take: 10
+      });
+      user.top_supporters_all_time = topSultansAllTime.map(item => ({
+        sender_name: item.sender_name,
+        gross_amount: parseFloat(item._sum.gross_amount) || 0
+      }));
+
+      // 2. Top Sultans This Month
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+
+      const topSultansMonth = await prisma.transaction.groupBy({
+        by: ['sender_name'],
+        where: {
+          streamer_id: user.id,
+          status: 'SUCCESS',
+          createdAt: {
+            gte: startOfMonth
+          }
+        },
+        _sum: {
+          gross_amount: true
+        },
+        orderBy: {
+          _sum: {
+            gross_amount: 'desc'
+          }
+        },
+        take: 10
+      });
+      user.top_supporters_month = topSultansMonth.map(item => ({
+        sender_name: item.sender_name,
+        gross_amount: parseFloat(item._sum.gross_amount) || 0
+      }));
+
+      // 3. Recent Donations (Last 5)
+      const recentDonations = await prisma.transaction.findMany({
+        where: {
+          streamer_id: user.id,
+          status: 'SUCCESS'
+        },
+        select: {
+          id: true,
+          sender_name: true,
+          gross_amount: true,
+          message: true,
+          createdAt: true
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        take: 5
+      });
+      user.recent_donations = recentDonations.map(item => ({
+        id: item.id,
+        sender_name: item.sender_name,
+        gross_amount: parseFloat(item.gross_amount) || 0,
+        message: item.message,
+        createdAt: item.createdAt
+      }));
 
       let avatar = user.avatar_url;
       if (!avatar || avatar.includes('unsplash.com')) {

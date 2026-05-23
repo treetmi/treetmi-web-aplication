@@ -257,7 +257,8 @@ export default function WidgetStudio({ session, widgetToken }: Props) {
         const text = previewType === "DONATION"
           ? `${prefix}Halo ${previewName}! Terima kasih atas donasi Rp ${Number(amount).toLocaleString("id-ID")}.${previewMsg ? ` Pesan: ${previewMsg}` : ""}`
           : `${prefix}Order mabar baru dari ${previewName}! Game: ${previewGame}. Harga Rp ${Number(amount).toLocaleString("id-ID")}.`
-        const u = new SpeechSynthesisUtterance(text)
+        const cleanText = text.replace(/\*+/g, " bip ")
+        const u = new SpeechSynthesisUtterance(cleanText)
         u.lang = "id-ID"
         const voices = window.speechSynthesis.getVoices()
         const idVoice = voices.find(v => v.lang.startsWith("id")) || voices.find(v => v.lang.startsWith("en")) || voices[0]
@@ -387,28 +388,6 @@ export default function WidgetStudio({ session, widgetToken }: Props) {
             )}
           </div>
 
-          {/* 3. Fitur Mediashare Settings */}
-          <div className="p-5 bg-white border border-slate-200/80 rounded-3xl space-y-4 dark:bg-[#1C1C1C] dark:border-zinc-800">
-            <div className="flex items-center justify-between">
-              <p className="font-black italic text-xs uppercase tracking-widest text-slate-600 dark:text-zinc-400">📺 Fitur Mediashare (YouTube Video)</p>
-              <Switch checked={settings.mediashare_enabled} onCheckedChange={v => setSettings(s => ({ ...s, mediashare_enabled: v }))} />
-            </div>
-            {settings.mediashare_enabled && (
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Minimal Donasi untuk Mediashare (Rp)</Label>
-                  <input 
-                    type="text"
-                    value={formatNumberInput(settings.mediashare_min_donation ?? 0)}
-                    onChange={e => setSettings(s => ({ ...s, mediashare_min_donation: parseNumberInput(e.target.value) || 0 }))}
-                    placeholder="15.000"
-                    className="w-full h-10 px-3.5 rounded-xl border border-slate-200 text-xs font-bold dark:bg-[#262626] dark:border-zinc-700 dark:text-white outline-none bg-transparent"
-                  />
-                  <p className="text-[9px] font-bold text-slate-400 uppercase italic">Fans hanya bisa menyertakan link video YouTube jika nominal donasi sama dengan atau melebihi batas ini.</p>
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* 3. Sound Tiers */}
           <div className="p-5 bg-white border border-slate-200/80 rounded-3xl space-y-4 dark:bg-[#1C1C1C] dark:border-zinc-800">
@@ -603,90 +582,6 @@ export default function WidgetStudio({ session, widgetToken }: Props) {
             </Button>
           </div>
 
-          {/* OBS URL */}
-          <div className="p-6 bg-slate-50 border border-slate-200/80 rounded-3xl space-y-4 dark:bg-zinc-900/40 dark:border-zinc-800/80 shadow-inner">
-            <p className="font-black italic text-xs uppercase tracking-wider text-black dark:text-[#FFD551] flex items-center gap-1.5">
-              🔌 URL Widget OBS Studio
-            </p>
-            
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-zinc-400">🔗 Gabungan Alert URL (Bawaan)</Label>
-                <div className="flex gap-2">
-                  <input 
-                    readOnly 
-                    value={widgetUrl} 
-                    className="flex-1 h-9 px-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 bg-white dark:bg-[#262626] dark:border-zinc-700 dark:text-zinc-300 outline-none select-all font-mono" 
-                  />
-                  <Button 
-                    size="sm" 
-                    onClick={() => { navigator.clipboard.writeText(widgetUrl); toast.success("Widget Gabungan Alert URL berhasil disalin!") }} 
-                    className="h-9 px-4 rounded-xl font-black italic text-[10px] bg-[#FFD551] text-black hover:bg-[#FFC83B] transition-all shadow-sm shrink-0 border-none"
-                  >
-                    Salin
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-zinc-400">🔗 Hanya Donasi & Mabar Alert URL (Terpisah)</Label>
-                <div className="flex gap-2">
-                  <input 
-                    readOnly 
-                    value={`${widgetUrl}?excludeCall=true`} 
-                    className="flex-1 h-9 px-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 bg-white dark:bg-[#262626] dark:border-zinc-700 dark:text-zinc-300 outline-none select-all font-mono" 
-                  />
-                  <Button 
-                    size="sm" 
-                    onClick={() => { navigator.clipboard.writeText(`${widgetUrl}?excludeCall=true`); toast.success("Widget Donasi & Mabar Alert URL berhasil disalin!") }} 
-                    className="h-9 px-4 rounded-xl font-black italic text-[10px] bg-black hover:bg-zinc-900 text-[#FFD551] dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-[#FFD551] transition-all shadow-sm shrink-0 border-none"
-                  >
-                    Salin
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-[10px] font-black uppercase text-slate-500 dark:text-zinc-400">🔗 Hanya Panggilan Mabar Alert URL (Terpisah)</Label>
-                <div className="flex gap-2">
-                  <input 
-                    readOnly 
-                    value={`${widgetUrl}?onlyCall=true`} 
-                    className="flex-1 h-9 px-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 bg-white dark:bg-[#262626] dark:border-zinc-700 dark:text-zinc-300 outline-none select-all font-mono" 
-                  />
-                  <Button 
-                    size="sm" 
-                    onClick={() => { navigator.clipboard.writeText(`${widgetUrl}?onlyCall=true`); toast.success("Widget Panggilan Mabar Alert URL berhasil disalin!") }} 
-                    className="h-9 px-4 rounded-xl font-black italic text-[10px] bg-[#FFD551] text-black hover:bg-[#FFC83B] transition-all shadow-sm shrink-0 border-none"
-                  >
-                    Salin
-                  </Button>
-                </div>
-              </div>
-            </div>
-            
-            <div className="space-y-2.5 pt-2 border-t border-slate-200/60 dark:border-zinc-800/80">
-              <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Langkah Pemasangan OBS:</p>
-              <div className="space-y-2 text-xs font-semibold italic text-slate-500 dark:text-zinc-400 leading-normal">
-                <div className="flex items-start gap-2.5">
-                  <span className="flex items-center justify-center w-5 h-5 rounded-md bg-black text-[#FFD551] dark:bg-[#FFD551] dark:text-black font-black text-[9px] shrink-0">1</span>
-                  <span>Salin URL widget di atas dengan menekan tombol <strong className="text-black dark:text-white">Salin</strong>.</span>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <span className="flex items-center justify-center w-5 h-5 rounded-md bg-black text-[#FFD551] dark:bg-[#FFD551] dark:text-black font-black text-[9px] shrink-0">2</span>
-                  <span>Buka <strong className="text-black dark:text-white">OBS Studio</strong> &rarr; klik ikon <code className="bg-[#FFD551] text-black px-1.5 py-0.5 rounded font-black dark:text-black text-[10px]">+</code> &rarr; pilih <code className="bg-[#FFD551] text-black px-1.5 py-0.5 rounded font-black dark:text-black text-[10px]">Browser Source</code>.</span>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <span className="flex items-center justify-center w-5 h-5 rounded-md bg-black text-[#FFD551] dark:bg-[#FFD551] dark:text-black font-black text-[9px] shrink-0">3</span>
-                  <span>Paste URL ke kolom URL &rarr; Set lebar (<strong className="text-emerald-500">Width</strong>) ke <code className="bg-black/5 px-1 py-0.5 rounded font-black text-[10px]">1920</code> & tinggi (<strong className="text-emerald-500">Height</strong>) ke <code className="bg-black/5 px-1 py-0.5 rounded font-black text-[10px]">1080</code>.</span>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <span className="flex items-center justify-center w-5 h-5 rounded-md bg-black text-[#FFD551] dark:bg-[#FFD551] dark:text-black font-black text-[9px] shrink-0">4</span>
-                  <span>Centang <strong className="text-black dark:text-white">Control audio via OBS</strong> / pastikan volume source di-unmute agar suara TTS terdengar jelas!</span>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

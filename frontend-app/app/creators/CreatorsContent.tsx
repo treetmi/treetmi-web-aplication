@@ -19,7 +19,6 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import Image from "next/image"
 import { ADMIN_API } from "@/lib/api"
 
 interface CreatorCard {
@@ -40,15 +39,15 @@ interface CreatorCard {
   isVerified?: boolean
 }
 
-const MOCK_CREATORS: CreatorCard[] = [
+const MOCK_CREATORS = [
   {
     username: "budigamer",
     name: "Budi Gamer",
     role: "Pro Player & MLBB Streamer",
-    category: "GAMING",
+    category: "GAMING" as const,
     bio: "Push Rank MLBB sampai Mythical Glory! Mabar FIFO otomatis dengan overlay OBS.",
     followerCount: "128K",
-    activeServices: ["🎮 Jasa Mabar", "💎 Donasi Alert"],
+    activeServices: ["Jasa Mabar", "Donasi Alert"],
     backgroundColor: "from-amber-400 to-[#FFD551]",
     textColor: "text-amber-500",
     borderColor: "border-amber-400/40",
@@ -61,10 +60,10 @@ const MOCK_CREATORS: CreatorCard[] = [
     username: "sarah_art",
     name: "Sarah Creative",
     role: "UI/UX Designer & Artist",
-    category: "CREATIVE",
+    category: "CREATIVE" as const,
     bio: "Desain portofolio UX, logo minimalis, & custom anime avatar untuk sosial media Anda.",
     followerCount: "63K",
-    activeServices: ["🎨 Anime Avatar", "📐 UI/UX Review"],
+    activeServices: ["Anime Avatar", "UI/UX Review"],
     backgroundColor: "from-purple-400 to-indigo-500",
     textColor: "text-purple-500",
     borderColor: "border-purple-400/40",
@@ -77,10 +76,10 @@ const MOCK_CREATORS: CreatorCard[] = [
     username: "andidev",
     name: "Andi Wijaya",
     role: "Software Engineer & Tech Creator",
-    category: "TECH",
+    category: "TECH" as const,
     bio: "Bahas coding tutorial Next.js, React, & tips tembus interview kerja startup tier-1.",
     followerCount: "42K",
-    activeServices: ["💻 Code Review", "💬 1-on-1 Mentoring"],
+    activeServices: ["Code Review", "1-on-1 Mentoring"],
     backgroundColor: "from-emerald-400 to-teal-500",
     textColor: "text-emerald-500",
     borderColor: "border-emerald-400/40",
@@ -91,12 +90,12 @@ const MOCK_CREATORS: CreatorCard[] = [
   },
   {
     username: "lunavtuber",
-    name: "Luna Ch. 🎙️",
+    name: "Luna Ch.",
     role: "Virtual YouTuber & Singer",
-    category: "MUSIC",
+    category: "MUSIC" as const,
     bio: "Virtual Idol retro nyanyi lagu anime classic & pop jepang request langsung lewat donasi!",
     followerCount: "95K",
-    activeServices: ["🎤 Request Lagu", "👾 Mabar Santai"],
+    activeServices: ["Request Lagu", "Mabar Santai"],
     backgroundColor: "from-cyan-400 to-blue-500",
     textColor: "text-cyan-500",
     borderColor: "border-cyan-400/40",
@@ -109,10 +108,10 @@ const MOCK_CREATORS: CreatorCard[] = [
     username: "fadhils",
     name: "Fadhil Streamer",
     role: "Valorant & Variety Streamer",
-    category: "GAMING",
+    category: "GAMING" as const,
     bio: "Live streaming seru-seruan tiap malam! Titip lagu jedag-jedug, curhat tipis, & setup OBS.",
     followerCount: "84K",
-    activeServices: ["💎 Donasi Alert", "🎧 Request Song"],
+    activeServices: ["Donasi Alert", "Request Song"],
     backgroundColor: "from-rose-400 to-pink-500",
     textColor: "text-rose-500",
     borderColor: "border-rose-400/40",
@@ -125,10 +124,10 @@ const MOCK_CREATORS: CreatorCard[] = [
     username: "rianmusic",
     name: "Rian Acoustic",
     role: "Indie Singer & Guitarist",
-    category: "MUSIC",
+    category: "MUSIC" as const,
     bio: "Cover gitar akustik santai. Request lagu favoritmu langsung dimainkan live on stream!",
     followerCount: "31K",
-    activeServices: ["🎧 Request Song", "💎 Donasi Alert"],
+    activeServices: ["Request Song", "Donasi Alert"],
     backgroundColor: "from-orange-400 to-amber-500",
     textColor: "text-orange-500",
     borderColor: "border-orange-400/40",
@@ -139,7 +138,6 @@ const MOCK_CREATORS: CreatorCard[] = [
   }
 ]
 
-// Dynamic avatar resolver using exact same character-code hash formula as backend-api database service
 const getAvatarUrl = (username: string, customAvatarUrl?: string) => {
   if (customAvatarUrl && customAvatarUrl.trim() !== "" && !customAvatarUrl.includes("unsplash.com")) {
     return customAvatarUrl;
@@ -155,7 +153,8 @@ const getAvatarUrl = (username: string, customAvatarUrl?: string) => {
 }
 
 export default function CreatorsContent() {
-  const { t } = useLanguage()
+  const { lang } = useLanguage()
+  const isIndo = lang === "id"
   const [searchQuery, setSearchQuery] = useState("")
   const [activeCategory, setActiveCategory] = useState<"ALL" | "GAMING" | "CREATIVE" | "TECH" | "MUSIC">("ALL")
   const [creators, setCreators] = useState<CreatorCard[]>(MOCK_CREATORS)
@@ -198,9 +197,11 @@ export default function CreatorsContent() {
               role: user.role_title || "Creator",
               isVerified: user.is_verified,
               category: cat,
-              bio: user.bio || "Dukung saya agar terus semangat membuat karya digital berkualitas!",
+              bio: user.bio || (isIndo ? "Dukung saya agar terus semangat membuat karya digital berkualitas!" : "Support me so I can keep creating high-quality digital content!"),
               followerCount: "10K+",
-              activeServices: user.show_services !== false ? ["🎮 Jasa Mabar", "💎 Donasi Alert"] : ["💎 Donasi Alert"],
+              activeServices: user.show_services !== false 
+                ? [isIndo ? "Jasa Mabar" : "Play Session", isIndo ? "Donasi Alert" : "Donation Alert"] 
+                : [isIndo ? "Donasi Alert" : "Donation Alert"],
               backgroundColor: bg,
               textColor: txt,
               borderColor: border,
@@ -220,7 +221,7 @@ export default function CreatorsContent() {
     }
 
     fetchRealCreators()
-  }, [])
+  }, [isIndo])
 
   const filteredCreators = creators.filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -277,7 +278,7 @@ export default function CreatorsContent() {
           className="inline-flex items-center gap-2 bg-[#FFD551] text-black px-4 py-1.5 font-display font-extrabold uppercase text-[10px] rounded-full shadow-sm tracking-wider mb-4"
         >
           <Users className="size-3.5 fill-current" />
-          <span>Kreator Terdaftar</span>
+          <span>{isIndo ? "Kreator Terdaftar" : "Registered Creators"}</span>
         </motion.div>
 
         <motion.h1
@@ -286,7 +287,10 @@ export default function CreatorsContent() {
           transition={{ delay: 0.1 }}
           className="text-4xl md:text-5xl lg:text-6xl font-display font-black tracking-tight leading-none text-[#1A1A19] dark:text-[#EAE9E4]"
         >
-          Jelajahi <span className="bg-gradient-to-r from-amber-500 to-yellow-400 bg-clip-text text-transparent">Kreator Favorit</span>
+          {isIndo ? "Jelajahi" : "Explore"}{" "}
+          <span className="bg-gradient-to-r from-amber-500 to-yellow-400 bg-clip-text text-transparent">
+            {isIndo ? "Kreator Favorit" : "Favorite Creators"}
+          </span>
         </motion.h1>
 
         <motion.p
@@ -295,7 +299,9 @@ export default function CreatorsContent() {
           transition={{ delay: 0.2 }}
           className="text-sm md:text-base font-medium text-[#706E68] dark:text-[#A09E96] max-w-xl mx-auto mt-4 leading-relaxed"
         >
-          Temukan dan dukung langsung streamer, pro-gamer, desainer, musisi, & VTuber favorit Anda dengan donasi instan dan antrean Mabar FIFO overlay otomatis!
+          {isIndo
+            ? "Temukan dan dukung langsung streamer, pro-gamer, desainer, musisi, & VTuber favorit Anda dengan donasi instan dan antrean Mabar FIFO overlay otomatis!"
+            : "Discover and support your favorite streamers, pro-gamers, designers, musicians, & VTubers with instant donations and FIFO overlay play sessions!"}
         </motion.p>
       </section>
 
@@ -310,7 +316,7 @@ export default function CreatorsContent() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari nama, role, atau username..."
+              placeholder={isIndo ? "Cari nama, role, atau username..." : "Search name, role, or username..."}
               className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-zinc-950/80 border-2 border-slate-100 dark:border-zinc-800 rounded-2xl text-sm font-semibold focus:outline-none focus:border-amber-400 dark:focus:border-[#FFD551] transition-all dark:text-white"
             />
           </div>
@@ -318,11 +324,11 @@ export default function CreatorsContent() {
           {/* Slick Categories Tabs */}
           <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
             {([
-              { id: "ALL", label: "Semua", icon: <Globe className="size-3.5" /> },
+              { id: "ALL", label: isIndo ? "Semua" : "All", icon: <Globe className="size-3.5" /> },
               { id: "GAMING", label: "Gaming", icon: <Gamepad2 className="size-3.5" /> },
               { id: "CREATIVE", label: "Creative", icon: <Palette className="size-3.5" /> },
-              { id: "TECH", label: "Developer", icon: <Code2 className="size-3.5" /> },
-              { id: "MUSIC", label: "Music & Art", icon: <Music4 className="size-3.5" /> }
+              { id: "TECH", label: isIndo ? "Developer" : "Tech", icon: <Code2 className="size-3.5" /> },
+              { id: "MUSIC", label: isIndo ? "Music & Art" : "Music", icon: <Music4 className="size-3.5" /> }
             ] as const).map((cat) => (
               <button
                 key={cat.id}
@@ -404,7 +410,7 @@ export default function CreatorsContent() {
                             <img src="/verified.svg" alt="Verified" className="w-5 h-5 inline-block align-middle shrink-0" />
                           )}
                         </div>
-                        <p className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-widest leading-none">
+                        <p className="text-[10px] font-bold text-slate-400 dark:text-zinc-550 uppercase tracking-widest leading-none">
                           @{c.username} • {c.role}
                         </p>
                       </div>
@@ -430,13 +436,17 @@ export default function CreatorsContent() {
                     {/* Footer call to action */}
                     <div className="pt-6 border-t border-slate-100 dark:border-zinc-800/80 flex items-center justify-between gap-4 mt-6">
                       <div className="text-left">
-                        <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider leading-none">Total Dukungan</p>
-                        <p className="text-base font-display font-black text-slate-700 dark:text-[#EAE9E4] mt-1">{c.supportCount} Dukungan</p>
+                        <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider leading-none">
+                          {isIndo ? "Total Dukungan" : "Total Support"}
+                        </p>
+                        <p className="text-base font-display font-black text-slate-700 dark:text-[#EAE9E4] mt-1">
+                          {c.supportCount} {isIndo ? "Dukungan" : "Supports"}
+                        </p>
                       </div>
 
                       <Link href={`/${c.username}`} className="flex-shrink-0">
                         <Button className="h-10 px-5 text-xs rounded-xl font-bold bg-[#FFD551] text-black hover:bg-[#FFD551]/90 gap-1 hover:translate-y-[-1px] transition-all">
-                          <span>Profil</span>
+                          <span>{isIndo ? "Profil" : "Profile"}</span>
                           <ArrowRight className="size-3.5" />
                         </Button>
                       </Link>
@@ -455,15 +465,19 @@ export default function CreatorsContent() {
               <div className="size-16 rounded-2xl bg-amber-100 dark:bg-zinc-900 text-amber-500 flex items-center justify-center mx-auto mb-4 animate-bounce">
                 <Search className="size-8" />
               </div>
-              <h3 className="text-lg font-display font-black text-slate-800 dark:text-[#EAE9E4]">Kreator Tidak Ditemukan</h3>
+              <h3 className="text-lg font-display font-black text-slate-800 dark:text-[#EAE9E4]">
+                {isIndo ? "Kreator Tidak Ditemukan" : "Creator Not Found"}
+              </h3>
               <p className="text-xs font-semibold text-slate-500 dark:text-[#A09E96] mt-2">
-                Tidak ada kreator yang cocok dengan filter pencarian "{searchQuery}". Coba kata kunci lainnya!
+                {isIndo
+                  ? `Tidak ada kreator yang cocok dengan filter pencarian "${searchQuery}". Coba kata kunci lainnya!`
+                  : `No creators match search query "${searchQuery}". Try other keywords!`}
               </p>
               <Button 
                 onClick={() => { setSearchQuery(""); setActiveCategory("ALL"); }}
                 className="mt-6 h-10 px-6 rounded-xl text-xs font-bold bg-slate-900 text-white dark:bg-[#FFD551] dark:text-black hover:opacity-90"
               >
-                Reset Filter
+                {isIndo ? "Reset Filter" : "Reset Filters"}
               </Button>
             </motion.div>
           )}

@@ -4,13 +4,13 @@ import React, { useState, useEffect } from "react"
 import { Navbar } from "@/components/navbar"
 import { useLanguage } from "@/components/language-provider"
 import { motion, AnimatePresence } from "framer-motion"
-import { 
-  Search, 
-  Gamepad2, 
-  Sparkles, 
-  Tv, 
-  Camera, 
-  Users, 
+import {
+  Search,
+  Gamepad2,
+  Sparkles,
+  Tv,
+  Camera,
+  Users,
   ArrowRight,
   Code2,
   Music4,
@@ -59,10 +59,10 @@ function detectCategory(roleTitle: string): Category {
 
 function getCategoryStyle(cat: Category): { bg: string; text: string; border: string } {
   switch (cat) {
-    case "TECH":     return { bg: "from-emerald-400 to-teal-500",  text: "text-emerald-500", border: "border-emerald-400/40" }
-    case "CREATIVE": return { bg: "from-purple-400 to-indigo-500", text: "text-purple-500",  border: "border-purple-400/40" }
-    case "MUSIC":    return { bg: "from-cyan-400 to-blue-500",     text: "text-cyan-500",    border: "border-cyan-400/40" }
-    default:         return { bg: "from-amber-400 to-[#FFD551]",   text: "text-amber-500",   border: "border-amber-400/40" }
+    case "TECH": return { bg: "from-emerald-400 to-teal-500", text: "text-emerald-500", border: "border-emerald-400/40" }
+    case "CREATIVE": return { bg: "from-purple-400 to-indigo-500", text: "text-purple-500", border: "border-purple-400/40" }
+    case "MUSIC": return { bg: "from-cyan-400 to-blue-500", text: "text-cyan-500", border: "border-cyan-400/40" }
+    default: return { bg: "from-amber-400 to-[#FFD551]", text: "text-amber-500", border: "border-amber-400/40" }
   }
 }
 
@@ -152,15 +152,15 @@ export default function CreatorsDirectory() {
 
       {/* BACKGROUND FLOATING DECORATIONS */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden select-none z-0 opacity-[0.03] dark:opacity-[0.06]">
-        <motion.div 
+        <motion.div
           animate={{ y: [0, -20, 0], rotate: [0, 12, 0] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
           className="absolute top-[12%] left-[3%] text-[#1A1A19] dark:text-[#EAE9E4]"
         >
           <Gamepad2 className="w-48 h-48" strokeWidth={1} />
         </motion.div>
-        
-        <motion.div 
+
+        <motion.div
           animate={{ y: [0, 20, 0], rotate: [0, -10, 0] }}
           transition={{ duration: 9, repeat: Infinity, ease: "easeInOut", delay: 1 }}
           className="absolute top-[25%] right-[5%] text-[#1A1A19] dark:text-[#EAE9E4]"
@@ -168,7 +168,7 @@ export default function CreatorsDirectory() {
           <Camera className="w-40 h-40" strokeWidth={1} />
         </motion.div>
 
-        <motion.div 
+        <motion.div
           animate={{ scale: [1, 1.12, 1], rotate: [0, 180, 360] }}
           transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
           className="absolute bottom-[15%] left-[6%] text-[#1A1A19] dark:text-[#EAE9E4]"
@@ -176,7 +176,7 @@ export default function CreatorsDirectory() {
           <Sparkles className="w-36 h-36" strokeWidth={1} />
         </motion.div>
 
-        <motion.div 
+        <motion.div
           animate={{ y: [0, -15, 0], rotate: [0, -8, 0] }}
           transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
           className="absolute bottom-[22%] right-[10%] text-[#1A1A19] dark:text-[#EAE9E4]"
@@ -218,7 +218,7 @@ export default function CreatorsDirectory() {
       {/* SEARCH AND FILTER */}
       <section className="relative z-10 container mx-auto px-4 max-w-[1360px] mb-16">
         <div className="flex flex-col gap-6 md:flex-row md:items-center justify-between bg-white dark:bg-zinc-900/60 border border-slate-200/80 dark:border-zinc-800/80 rounded-3xl p-6 shadow-xl backdrop-blur-md">
-          
+
           {/* Search bar */}
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-slate-400" />
@@ -234,20 +234,19 @@ export default function CreatorsDirectory() {
           {/* Category tabs */}
           <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
             {([
-              { id: "ALL",      label: "Semua",     icon: <Globe    className="size-3.5" /> },
-              { id: "GAMING",   label: "Gaming",    icon: <Gamepad2 className="size-3.5" /> },
-              { id: "CREATIVE", label: "Creative",  icon: <Palette  className="size-3.5" /> },
-              { id: "TECH",     label: "Developer", icon: <Code2    className="size-3.5" /> },
-              { id: "MUSIC",    label: "Music & Art",icon: <Music4  className="size-3.5" /> }
+              { id: "ALL", label: "Semua", icon: <Globe className="size-3.5" /> },
+              { id: "GAMING", label: "Gaming", icon: <Gamepad2 className="size-3.5" /> },
+              { id: "CREATIVE", label: "Creative", icon: <Palette className="size-3.5" /> },
+              { id: "TECH", label: "Developer", icon: <Code2 className="size-3.5" /> },
+              { id: "MUSIC", label: "Music & Art", icon: <Music4 className="size-3.5" /> }
             ] as const).map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id)}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                  activeCategory === cat.id
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${activeCategory === cat.id
                     ? "bg-[#FFD551] text-black shadow-md font-black"
                     : "bg-slate-50 dark:bg-zinc-950/80 text-slate-500 hover:text-slate-800 dark:hover:text-zinc-200 border border-slate-200/40 dark:border-zinc-800"
-                }`}
+                  }`}
               >
                 {cat.icon}
                 <span>{cat.label}</span>
@@ -259,7 +258,7 @@ export default function CreatorsDirectory() {
 
       {/* GRID SECTION */}
       <section className="relative z-10 container mx-auto px-4 max-w-[1360px] flex-1 pb-20">
-        
+
         {/* Loading State */}
         {isLoading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -306,19 +305,17 @@ export default function CreatorsDirectory() {
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.9, y: 10 }}
                     transition={{ duration: 0.4, delay: i * 0.05 }}
-                    className={`group bg-white dark:bg-zinc-900 border rounded-[28px] shadow-md overflow-hidden flex flex-col justify-between hover:-translate-y-1.5 hover:shadow-xl transition-all duration-300 relative min-h-[420px] ${
-                      c.status === 'SUSPENDED'
+                    className={`group bg-white dark:bg-zinc-900 border rounded-[28px] shadow-md overflow-hidden flex flex-col justify-between hover:-translate-y-1.5 hover:shadow-xl transition-all duration-300 relative min-h-[420px] ${c.status === 'SUSPENDED'
                         ? 'border-red-200/80 dark:border-red-900/40'
                         : 'border-slate-200/80 dark:border-zinc-800'
-                    }`}
+                      }`}
                   >
                     {/* Banner header — real image from DB, fallback to category gradient */}
                     <div
-                      className={`h-20 w-full relative flex-shrink-0 overflow-hidden ${
-                        !c.banner_url
+                      className={`h-20 w-full relative flex-shrink-0 overflow-hidden ${!c.banner_url
                           ? `bg-gradient-to-r ${c.status === 'SUSPENDED' ? 'from-slate-300 to-slate-400 dark:from-zinc-700 dark:to-zinc-600' : c.backgroundColor}`
                           : ''
-                      }`}
+                        }`}
                     >
                       {/* Real banner image from DB */}
                       {c.banner_url && (
@@ -353,11 +350,10 @@ export default function CreatorsDirectory() {
 
                       {/* Avatar */}
                       <div className="relative -mt-9 mb-3 inline-block z-10 self-start">
-                        <div className={`size-[72px] rounded-[20px] bg-slate-100 dark:bg-zinc-800 border-4 flex items-center justify-center shadow-md overflow-hidden relative ${
-                          c.status === 'SUSPENDED'
+                        <div className={`size-[72px] rounded-[20px] bg-slate-100 dark:bg-zinc-800 border-4 flex items-center justify-center shadow-md overflow-hidden relative ${c.status === 'SUSPENDED'
                             ? 'border-red-300/60 dark:border-red-900/60'
                             : 'border-white dark:border-zinc-900'
-                        }`}>
+                          }`}>
                           {c.avatar_url ? (
                             <img
                               src={c.avatar_url}
@@ -381,11 +377,10 @@ export default function CreatorsDirectory() {
                         {/* Name + verified badge */}
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <h3 className={`text-lg font-display font-black leading-tight transition-colors ${
-                              c.status === 'SUSPENDED'
+                            <h3 className={`text-lg font-display font-black leading-tight transition-colors ${c.status === 'SUSPENDED'
                                 ? 'text-slate-400 dark:text-zinc-500'
                                 : 'text-slate-800 dark:text-[#EAE9E4] group-hover:text-amber-500 dark:group-hover:text-[#FFD551]'
-                            }`}>
+                              }`}>
                               {c.name}
                             </h3>
                             {c.is_verified && c.status !== 'SUSPENDED' && (
@@ -418,11 +413,11 @@ export default function CreatorsDirectory() {
                         {/* Category tag — hide for suspended */}
                         {c.status !== 'SUSPENDED' && (
                           <div className="flex flex-wrap gap-1.5 pt-1">
-                            <span className={`px-2 py-0.5 text-[8px] font-extrabold uppercase italic tracking-wider rounded-md bg-slate-50 dark:bg-zinc-950/80 border border-slate-100 dark:border-zinc-800 dark:text-[#EAE9E4] ${c.textColor}`}>
-                              {c.category === "GAMING"   ? "🎮 Gaming"    :
-                               c.category === "CREATIVE" ? "🎨 Creative"  :
-                               c.category === "TECH"     ? "💻 Developer" :
-                                                           "🎵 Music & Art"}
+                            <span className={`px-2 py-0.5 text-[8px] font-extrabold uppercase italic tracking-wider rounded-md bg-slate-50 dark:bg-zinc-950/80 border border-slate-100 dark:border-zinc-800 dark:text-[#EAE9E4] ${c.textColor} flex items-center gap-1`}>
+                              {c.category === "GAMING" ? <><Gamepad2 className="size-3" /> Gaming</> :
+                                c.category === "CREATIVE" ? <><Palette className="size-3" /> Creative</> :
+                                  c.category === "TECH" ? <><Code2 className="size-3" /> Developer</> :
+                                    <><Music4 className="size-3" /> Music & Art</>}
                             </span>
                           </div>
                         )}

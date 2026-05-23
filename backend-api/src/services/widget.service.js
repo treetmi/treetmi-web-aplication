@@ -1,3 +1,4 @@
+// Widget settings service to manage alerts and integrations (triggered nodemon reload)
 const prisma = require('../config/prisma');
 
 const DEFAULT_TIERS = [
@@ -27,18 +28,36 @@ class WidgetService {
   }
 
   async update(streamerId, data) {
-    const { color_donation, color_mabar, tts_enabled, tts_speed, tts_pitch, alert_duration_sec, sound_tiers, coin_sound_key, coin_sound_url, mediashare_enabled, mediashare_min_donation } = data;
+    const { 
+      color_donation, color_mabar, tts_enabled, tts_speed, tts_pitch, alert_duration_sec, sound_tiers, coin_sound_key, coin_sound_url, 
+      mediashare_enabled, mediashare_min_donation,
+      target_card_title, target_canvas_transparent, target_header_bg, target_header_text_color, target_body_bg, target_body_text_color, target_progress_color
+    } = data;
     return prisma.widgetSetting.upsert({
       where: { streamer_id: streamerId },
       update: { 
         color_donation, color_mabar, tts_enabled, tts_speed, tts_pitch, alert_duration_sec, sound_tiers, coin_sound_key, coin_sound_url,
         mediashare_enabled,
-        mediashare_min_donation: mediashare_min_donation !== undefined ? parseFloat(mediashare_min_donation) : undefined
+        mediashare_min_donation: mediashare_min_donation !== undefined ? parseFloat(mediashare_min_donation) : undefined,
+        target_card_title,
+        target_canvas_transparent: target_canvas_transparent !== undefined ? Boolean(target_canvas_transparent) : undefined,
+        target_header_bg,
+        target_header_text_color,
+        target_body_bg,
+        target_body_text_color,
+        target_progress_color
       },
       create: { 
         streamer_id: streamerId, color_donation, color_mabar, tts_enabled, tts_speed, tts_pitch, alert_duration_sec, sound_tiers, coin_sound_key, coin_sound_url,
         mediashare_enabled,
-        mediashare_min_donation: mediashare_min_donation !== undefined ? parseFloat(mediashare_min_donation) : undefined
+        mediashare_min_donation: mediashare_min_donation !== undefined ? parseFloat(mediashare_min_donation) : undefined,
+        target_card_title,
+        target_canvas_transparent: target_canvas_transparent !== undefined ? Boolean(target_canvas_transparent) : false,
+        target_header_bg,
+        target_header_text_color,
+        target_body_bg,
+        target_body_text_color,
+        target_progress_color
       }
     });
   }

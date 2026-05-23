@@ -3,8 +3,11 @@
 import React, { Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { ArrowLeft, ExternalLink, Shield, X } from "lucide-react"
+import { useLanguage } from "@/components/language-provider"
 
 function LeaveContent() {
+  const { lang } = useLanguage()
+  const isIndo = lang === "id"
   const searchParams = useSearchParams()
   const url = searchParams.get("url") || ""
 
@@ -41,16 +44,18 @@ function LeaveContent() {
             <X className="size-6 text-slate-400" />
           </div>
           <h1 className="text-xl font-black uppercase tracking-tight text-[#1A1A19] dark:text-[#EAE9E4]">
-            Link Tidak Ditemukan
+            {isIndo ? "Link Tidak Ditemukan" : "Link Not Found"}
           </h1>
           <p className="text-xs font-semibold text-[#706E68] dark:text-[#A09E96] leading-relaxed">
-            Link tujuan tidak valid atau sudah kadaluarsa. Silakan kembali ke halaman utama.
+            {isIndo 
+              ? "Link tujuan tidak valid atau sudah kadaluarsa. Silakan kembali ke halaman utama."
+              : "The target link is invalid or has expired. Please return to the main page."}
           </p>
           <a
             href="/"
             className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-slate-900 dark:bg-[#FFD551] text-white dark:text-black text-xs font-black uppercase italic tracking-wider border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all"
           >
-            <ArrowLeft className="size-4" /> Kembali ke Beranda
+            <ArrowLeft className="size-4" /> {isIndo ? "Kembali ke Beranda" : "Back to Home"}
           </a>
         </div>
       </div>
@@ -78,10 +83,12 @@ function LeaveContent() {
             
             <div className="space-y-1.5">
               <h1 className="text-xl font-black uppercase tracking-tight text-[#1A1A19] dark:text-[#EAE9E4]">
-                Kamu Akan Keluar dari Treetmi
+                {isIndo ? "Kamu Akan Keluar dari Treetmi" : "You are Leaving Treetmi"}
               </h1>
               <p className="text-xs font-semibold text-[#706E68] dark:text-[#A09E96] leading-relaxed max-w-[320px] mx-auto">
-                Link ini mengarah ke website eksternal yang bukan bagian dari treetmi.id. Pastikan kamu mempercayai link ini sebelum melanjutkan.
+                {isIndo
+                  ? "Link ini mengarah ke website eksternal yang bukan bagian dari treetmi.id. Pastikan kamu mempercayai link ini sebelum melanjutkan."
+                  : "This link leads to an external website that is not part of treetmi.id. Make sure you trust this link before proceeding."}
               </p>
             </div>
           </div>
@@ -90,10 +97,10 @@ function LeaveContent() {
           <div className="p-4 bg-slate-50 dark:bg-zinc-900 border-2 border-black rounded-2xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] space-y-3">
             <div className="flex items-center gap-2">
               <span className="text-[9px] font-black uppercase tracking-widest italic bg-[#FFD551] text-black px-2.5 py-1 rounded-full border border-black leading-none">
-                Tujuan Link
+                {isIndo ? "Tujuan Link" : "Link Destination"}
               </span>
               {displayProtocol && (
-                <span className="text-[9px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wider">
+                <span className="text-[9px] font-bold text-slate-400 dark:text-zinc-550 uppercase tracking-wider">
                   {displayProtocol}
                 </span>
               )}
@@ -104,7 +111,7 @@ function LeaveContent() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-black text-[#1A1A19] dark:text-[#EAE9E4] truncate">
-                  {displayHost || "External Link"}
+                  {displayHost || (isIndo ? "External Link" : "External Link")}
                 </p>
                 <p className="text-[10px] font-semibold text-[#706E68] dark:text-[#A09E96] truncate">
                   {displayUrl}
@@ -119,27 +126,31 @@ function LeaveContent() {
               onClick={handleProceed}
               className="flex items-center justify-center gap-2 w-full h-14 rounded-xl bg-[#FFD551] text-black text-sm font-black uppercase italic tracking-wider border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer"
             >
-              <ExternalLink className="size-4" /> Lanjut ke Website
+              <ExternalLink className="size-4" /> {isIndo ? "Lanjut ke Website" : "Proceed to Website"}
             </button>
             
             <button
               onClick={handleGoBack}
               className="flex items-center justify-center gap-2 w-full h-12 rounded-xl bg-white dark:bg-zinc-900 text-[#1A1A19] dark:text-[#EAE9E4] text-xs font-black uppercase italic tracking-wider border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0 active:translate-y-0 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer"
             >
-              <ArrowLeft className="size-4" /> Kembali ke Treetmi
+              <ArrowLeft className="size-4" /> {isIndo ? "Kembali ke Treetmi" : "Return to Treetmi"}
             </button>
           </div>
 
           {/* Safety Notice */}
           <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border-2 border-amber-300 dark:border-amber-900/40 rounded-xl text-center">
             <p className="text-[9px] font-bold text-amber-700 dark:text-amber-400 leading-relaxed uppercase tracking-wider">
-              🔒 Tips: Jangan pernah membagikan password, kode OTP, atau data pribadi di website eksternal yang tidak kamu kenali.
+              {isIndo 
+                ? "🔒 Tips: Jangan pernah membagikan password, kode OTP, atau data pribadi di website eksternal yang tidak kamu kenali."
+                : "🔒 Tips: Never share your password, OTP code, or personal data on external websites that you do not recognize."}
             </p>
           </div>
 
           {/* Footer */}
-          <p className="text-[8px] font-bold text-slate-300 dark:text-zinc-600 uppercase tracking-widest text-center italic">
-            © 2026 Treetmi.id — Keamanan pengguna adalah prioritas kami
+          <p className="text-[8px] font-bold text-slate-300 dark:text-zinc-650 uppercase tracking-widest text-center italic">
+            {isIndo
+              ? "© 2026 Treetmi.id — Keamanan pengguna adalah prioritas kami"
+              : "© 2026 Treetmi.id — User safety is our priority"}
           </p>
         </div>
       </div>

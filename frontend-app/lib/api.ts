@@ -57,15 +57,32 @@ export const ADMIN_API = {
   updatePartner: (id: string) => `${API_BASE_URL}/partners/admin/update/${id}`,
   togglePartner: (id: string) => `${API_BASE_URL}/partners/admin/toggle/${id}`,
   deletePartner: (id: string) => `${API_BASE_URL}/partners/admin/delete/${id}`,
+  login: `${API_BASE_URL}/admin/login`,
+  login2FA: `${API_BASE_URL}/admin/login/2fa`,
+  changePassword: `${API_BASE_URL}/admin/change-password`,
+  setup2FA: `${API_BASE_URL}/admin/2fa/setup`,
+  enable2FA: `${API_BASE_URL}/admin/2fa/enable`,
+  disable2FA: `${API_BASE_URL}/admin/2fa/disable`,
+  status2FA: `${API_BASE_URL}/admin/2fa/status`,
+  filterWords: `${API_BASE_URL}/admin/filter-words`,
+  filterWordById: (id: string) => `${API_BASE_URL}/admin/filter-words/${id}`,
+  whatsappLogs: `${API_BASE_URL}/admin/whatsapp/logs`,
+  reports: `${API_BASE_URL}/reports/admin`,
+  updateReport: (id: string) => `${API_BASE_URL}/reports/admin/${id}`,
 };
 
 // Centralized Public API Endpoint Router
 export const PUBLIC_API = {
   profile: (username: string) => `${API_BASE_URL}/users/profile/${username}`,
   publicSettings: `${API_BASE_URL}/users/settings/public`,
+  simulateTransaction: `${API_BASE_URL}/users/transactions/simulate`,
+  resolveMedia: `${API_BASE_URL}/users/media/resolve`,
   checkProjectAccess: (email: string, streamerId: string) => `${API_BASE_URL}/projects/check-access?email=${encodeURIComponent(email)}&streamerId=${encodeURIComponent(streamerId)}`,
   trustBadges: `${API_BASE_URL}/users/trust-badges`,
   partners: `${API_BASE_URL}/partners`,
+  whatsappAlarm: (username: string) => `${API_BASE_URL}/users/profile/${username}/whatsapp-alarm`,
+  reports: `${API_BASE_URL}/reports`,
+  recentFeed: `${API_BASE_URL}/users/transactions/recent-feed`,
 };
 
 // Centralized User Account / Creator Portal API Router

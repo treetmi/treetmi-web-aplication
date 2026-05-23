@@ -60,7 +60,7 @@ class ProjectService {
    * Gateway-agnostic: works with Midtrans, Xendit, Payhook, or any payment provider.
    */
   async checkAccess(email, streamerId) {
-    // Find all successful transactions from this email to this creator
+    // Find all successful digital creation transactions from this email to this creator
     const transactions = await prisma.transaction.findMany({
       where: {
         sender_email: {
@@ -68,14 +68,17 @@ class ProjectService {
           mode: 'insensitive' // Case-insensitive email matching
         },
         streamer_id: streamerId,
-        status: 'SUCCESS'
+        status: 'SUCCESS',
+        message: {
+          startsWith: '[KARYA:'
+        }
       },
       select: {
         gross_amount: true
       }
     });
 
-    // Sum all donations from this supporter
+    // Sum all digital asset donations from this supporter
     const totalSupported = transactions.reduce(
       (sum, t) => sum + parseFloat(t.gross_amount),
       0

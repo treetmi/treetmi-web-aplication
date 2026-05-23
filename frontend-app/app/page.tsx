@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { useLanguage } from "@/components/language-provider"
@@ -33,7 +33,8 @@ import {
   Check,
   Camera,
   Headphones,
-  Coins
+  Coins,
+  Trophy
 } from "lucide-react"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
@@ -61,7 +62,7 @@ export default function Home() {
     name: string
     amount: number
     message: string
-    type: "donation" | "mabar"
+    type: "donation" | "mabar" | "gacha"
     gameNick?: string
     gameId?: string
   }>>([])
@@ -70,9 +71,26 @@ export default function Home() {
   const [simName, setSimName] = useState("Fadhil Streamer")
   const [simAmount, setSimAmount] = useState("50.000")
   const [simMessage, setSimMessage] = useState("Bang mabar kuy, gila gameplay lu jago bgt malam ini!")
-  const [simType, setSimType] = useState<"donation" | "mabar">("donation")
+  const [simType, setSimType] = useState<"donation" | "mabar" | "gacha">("donation")
   const [simGameNick, setSimGameNick] = useState("BudiGamer#1234")
   const [simGameId, setSimGameId] = useState("Valorant - Asia")
+
+  // Sandbox Gacha items definition
+  const SANDBOX_GACHA_ITEMS = [
+    { name: "Mabar 5 Game 🎮", color: "#FF5E5E" },
+    { name: "Follback IG 📸", color: "#FFA15E" },
+    { name: "Add Discord 💬", color: "#FFE85E" },
+    { name: "Singing Request 🎤", color: "#5EFF5E" },
+    { name: "Reset Slot Mabar 🎡", color: "#5EFFD5" },
+    { name: "Terima Kasih 💛", color: "#FFD551" }
+  ]
+
+  const sandboxCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const [isGachaSpinning, setIsGachaSpinning] = useState(false)
+  const [showGachaWheel, setShowGachaWheel] = useState(false)
+  const [gachaWinnerItem, setGachaWinnerItem] = useState<any>(null)
+  const [showGachaWinnerCard, setShowGachaWinnerCard] = useState(false)
+  const [sandboxGachaWinnerName, setSandboxGachaWinnerName] = useState("")
 
   // Dynamic active payment logos state with robust local fallbacks
   const [paymentLogos, setPaymentLogos] = useState<Array<{ name: string; url: string }>>([
@@ -87,14 +105,12 @@ export default function Home() {
   useEffect(() => {
     const fetchActivePaymentLogos = async () => {
       try {
-        const baseUrl = API_BASE_URL.replace(/\/api.*$/, "")
-
-        const res = await fetch(`${baseUrl}/api/v1/payment-channels`)
+        const res = await fetch(`${API_BASE_URL}/payment-channels`)
         const json = await res.json()
         if (json.success && json.data && json.data.length > 0) {
           const mapped = json.data.map((c: any) => ({
             name: c.name,
-            url: c.logoUrl.startsWith("http") ? c.logoUrl : `${baseUrl}${c.logoUrl}`
+            url: c.logoUrl.startsWith("http") ? c.logoUrl : `${API_BASE_URL.replace('/api/v1', '')}${c.logoUrl}`
           }))
           setPaymentLogos(mapped)
         }
@@ -181,8 +197,181 @@ export default function Home() {
     }
   }
 
+  // Gacha Wheel simulation trigger
+  const triggerSandboxGachaSpin = (winnerName: string) => {
+    setSandboxGachaWinnerName(winnerName)
+    setShowGachaWheel(true)
+    setIsGachaSpinning(true)
+    setGachaWinnerItem(null)
+    setShowGachaWinnerCard(false)
+
+    const winnerIdx = Math.floor(Math.random() * SANDBOX_GACHA_ITEMS.length)
+    const durationMs = 5000
+    const sliceAngle = (2 * Math.PI) / SANDBOX_GACHA_ITEMS.length
+    
+    // Target offset angle (stopping at 12 o'clock pointer)
+    const targetOffset = -Math.PI / 2 - (winnerIdx + 0.5) * sliceAngle
+    const totalSpins = 6 * 2 * Math.PI
+    const finalTargetAngle = targetOffset - totalSpins
+    const startTime = Date.now()
+
+    const playSandboxTick = () => {
+      try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
+        if (AudioContextClass) {
+          const ctx = new AudioContextClass()
+          const osc = ctx.createOscillator()
+          const gain = ctx.createGain()
+          osc.type = "sine"
+          osc.frequency.setValueAtTime(600, ctx.currentTime)
+          osc.frequency.exponentialRampToValueAtTime(120, ctx.currentTime + 0.04)
+          gain.gain.setValueAtTime(0.08, ctx.currentTime)
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.04)
+          osc.connect(gain)
+          gain.connect(ctx.destination)
+          osc.start()
+          osc.stop(ctx.currentTime + 0.04)
+        }
+      } catch {}
+    }
+
+    let lastSliceCross = 0
+
+    const drawSandboxWheel = (rotationAngle: number) => {
+      const canvas = sandboxCanvasRef.current
+      if (!canvas) return
+      const ctx = canvas.getContext("2d")
+      if (!ctx) return
+
+      const width = canvas.width
+      const height = canvas.height
+      const centerX = width / 2
+      const centerY = height / 2
+      const radius = Math.min(centerX, centerY) - 10
+
+      ctx.clearRect(0, 0, width, height)
+
+      // Draw outer boundary ring
+      ctx.save()
+      ctx.beginPath()
+      ctx.arc(centerX, centerY, radius + 2, 0, 2 * Math.PI)
+      ctx.fillStyle = "#18181b"
+      ctx.strokeStyle = "#FFD551"
+      ctx.lineWidth = 4
+      ctx.fill()
+      ctx.stroke()
+      ctx.restore()
+
+      SANDBOX_GACHA_ITEMS.forEach((item, index) => {
+        const angleStart = index * sliceAngle + rotationAngle
+        const angleEnd = (index + 1) * sliceAngle + rotationAngle
+
+        ctx.beginPath()
+        ctx.moveTo(centerX, centerY)
+        ctx.arc(centerX, centerY, radius - 2, angleStart, angleEnd)
+        ctx.closePath()
+
+        ctx.fillStyle = item.color
+        ctx.fill()
+        ctx.strokeStyle = "#18181b"
+        ctx.lineWidth = 2
+        ctx.stroke()
+
+        // Draw item label text
+        ctx.save()
+        ctx.translate(centerX, centerY)
+        ctx.rotate(angleStart + sliceAngle / 2)
+        ctx.textAlign = "right"
+        ctx.textBaseline = "middle"
+        ctx.fillStyle = "#000000"
+        ctx.font = "bold 9px sans-serif"
+        ctx.fillText(item.name, radius - 15, 0)
+        ctx.restore()
+      })
+
+      // Inner center logo circle
+      ctx.beginPath()
+      ctx.arc(centerX, centerY, 22, 0, 2 * Math.PI)
+      ctx.fillStyle = "#18181b"
+      ctx.strokeStyle = "#FFD551"
+      ctx.lineWidth = 3
+      ctx.fill()
+      ctx.stroke()
+
+      // Center visual star
+      ctx.fillStyle = "#FFD551"
+      ctx.font = "bold 10px sans-serif"
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      ctx.fillText("🎡", centerX, centerY)
+    }
+
+    const animateSandboxSpin = () => {
+      const elapsed = Date.now() - startTime
+      const progress = Math.min(elapsed / durationMs, 1)
+
+      const easeOut = 1 - Math.pow(1 - progress, 3)
+      const currentAngle = (finalTargetAngle) * easeOut
+      
+      drawSandboxWheel(currentAngle)
+
+      const currentSlice = Math.floor((-currentAngle - Math.PI / 2) / sliceAngle)
+      if (currentSlice !== lastSliceCross) {
+        playSandboxTick()
+        lastSliceCross = currentSlice
+      }
+
+      if (progress < 1) {
+        requestAnimationFrame(animateSandboxSpin)
+      } else {
+        setIsGachaSpinning(false)
+        setGachaWinnerItem(SANDBOX_GACHA_ITEMS[winnerIdx])
+        setShowGachaWinnerCard(true)
+
+        // Play victory sound notes
+        try {
+          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
+          if (AudioContextClass) {
+            const ctx = new AudioContextClass()
+            const playNote = (freq: number, start: number, duration: number) => {
+              const osc = ctx.createOscillator()
+              const gain = ctx.createGain()
+              osc.type = "triangle"
+              osc.frequency.setValueAtTime(freq, ctx.currentTime + start)
+              gain.gain.setValueAtTime(0.12, ctx.currentTime + start)
+              gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + start + duration)
+              osc.connect(gain)
+              gain.connect(ctx.destination)
+              osc.start(ctx.currentTime + start)
+              osc.stop(ctx.currentTime + start + duration)
+            }
+            playNote(261.63, 0, 0.2) // C4
+            playNote(329.63, 0.15, 0.2) // E4
+            playNote(392.00, 0.3, 0.2) // G4
+            playNote(523.25, 0.45, 0.6) // C5
+          }
+        } catch {}
+
+        // Speak winner announcement
+        const announcement = `Selamat kepada ${winnerName}! Mendapatkan hadiah: ${SANDBOX_GACHA_ITEMS[winnerIdx].name}`
+        playTTS(announcement, () => {})
+
+        setTimeout(() => {
+          setShowGachaWinnerCard(false)
+          setShowGachaWheel(false)
+          setGachaWinnerItem(null)
+        }, 6000)
+      }
+    }
+
+    // Start spin animation loop
+    setTimeout(() => {
+      animateSandboxSpin()
+    }, 200)
+  }
+
   // Trigger simulated alert helper
-  const triggerAlert = (name: string, amtStr: string, msg: string, type: "donation" | "mabar", gameNick?: string, gameId?: string) => {
+  const triggerAlert = (name: string, amtStr: string, msg: string, type: "donation" | "mabar" | "gacha", gameNick?: string, gameId?: string) => {
     const cleanAmt = parseInt(amtStr.replace(/\./g, "")) || 15000
     const alertId = Date.now().toString()
     const newAlert = {
@@ -203,18 +392,31 @@ export default function Home() {
 
     // Play support text-to-speech after the coin sound finishes completely
     setTimeout(() => {
-      const speechLabel = type === "donation" ? "Donasi Baru dari" : "Antrean Mabar Baru dari"
-      let speechText = `${speechLabel} ${newAlert.name} sebesar ${newAlert.amount.toLocaleString("id-ID")} Rupiah.`
-      if (type === "mabar" && gameNick) {
-        speechText += ` dengan ID Game ${gameNick} pada server ${gameId || "default"}.`
+      let speechText = ""
+      if (type === "gacha") {
+        speechText = newAlert.message 
+          ? `Ada donasi dari ${newAlert.name} sebesar Rp ${newAlert.amount.toLocaleString("id-ID")} mengikuti challenge gacha dengan pesan ${newAlert.message}`
+          : `Ada donasi dari ${newAlert.name} sebesar Rp ${newAlert.amount.toLocaleString("id-ID")} mengikuti challenge gacha!`;
+      } else {
+        const speechLabel = type === "donation" ? "Donasi Baru dari" : "Antrean Mabar Baru dari"
+        speechText = `${speechLabel} ${newAlert.name} sebesar ${newAlert.amount.toLocaleString("id-ID")} Rupiah.`
+        if (type === "mabar" && gameNick) {
+          speechText += ` dengan ID Game ${gameNick} pada server ${gameId || "default"}.`
+        }
+        speechText += ` Pesan: ${newAlert.message}`
       }
-      speechText += ` Pesan: ${newAlert.message}`
 
       playTTS(speechText, () => {
-        // Wait exactly 3 seconds AFTER TTS speech finishes before removing from screen
-        setTimeout(() => {
+        if (type === "gacha") {
+          // If it is Gacha, remove alert and trigger the Wheel spin!
           setSimulatedAlerts((prev) => prev.filter((a) => a.id !== alertId))
-        }, 3000)
+          triggerSandboxGachaSpin(newAlert.name)
+        } else {
+          // Wait exactly 3 seconds AFTER TTS speech finishes before removing from screen
+          setTimeout(() => {
+            setSimulatedAlerts((prev) => prev.filter((a) => a.id !== alertId))
+          }, 3000)
+        }
       })
     }, 550)
   }
@@ -468,8 +670,13 @@ export default function Home() {
                 {/* PREMIUM TAB MENU */}
                 <div className="flex gap-2 p-1.5 bg-[#FAF6EE]/80 dark:bg-zinc-950 rounded-2xl border-2 border-zinc-950 dark:border-zinc-800 relative">
                   <button
-                    onClick={() => setSimType("donation")}
-                    className={`flex-1 py-2.5 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 uppercase italic ${simType === "donation"
+                    onClick={() => {
+                      setSimType("donation")
+                      setSimName("Fadhil Streamer")
+                      setSimAmount("50.000")
+                      setSimMessage("Bang mabar kuy, gila gameplay lu jago banget malam ini!")
+                    }}
+                    className={`flex-1 py-2.5 text-xs md:text-sm font-black rounded-xl transition-all cursor-pointer flex items-center justify-center text-center gap-1.5 uppercase italic ${simType === "donation"
                       ? "bg-[#FFD551] text-black border-2 border-zinc-950 shadow-[2px_2px_0px_#1a1a1a] dark:shadow-[2px_2px_0px_#000000]"
                       : "text-slate-500 hover:text-slate-800 dark:hover:text-zinc-200"
                       }`}
@@ -477,13 +684,32 @@ export default function Home() {
                     {t.home.sandbox.tabDonation}
                   </button>
                   <button
-                    onClick={() => setSimType("mabar")}
-                    className={`flex-1 py-2.5 text-xs font-black rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 uppercase italic ${simType === "mabar"
+                    onClick={() => {
+                      setSimType("mabar")
+                      setSimName("Kurnia Gamer")
+                      setSimAmount("20.000")
+                      setSimMessage("Gass main push rank bang...")
+                    }}
+                    className={`flex-1 py-2.5 text-xs md:text-sm font-black rounded-xl transition-all cursor-pointer flex items-center justify-center text-center gap-1.5 uppercase italic ${simType === "mabar"
                       ? "bg-[#FFD551] text-black border-2 border-zinc-950 shadow-[2px_2px_0px_#1a1a1a] dark:shadow-[2px_2px_0px_#000000]"
                       : "text-slate-500 hover:text-slate-800 dark:hover:text-zinc-200"
                       }`}
                   >
                     {t.home.sandbox.tabMabar}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSimType("gacha")
+                      setSimName("Syahdan Roll")
+                      setSimAmount("35.000")
+                      setSimMessage("Gacha doang demi follow back instagram!")
+                    }}
+                    className={`flex-1 py-2.5 text-xs md:text-sm font-black rounded-xl transition-all cursor-pointer flex items-center justify-center text-center gap-1.5 uppercase italic ${simType === "gacha"
+                      ? "bg-[#FFD551] text-black border-2 border-zinc-950 shadow-[2px_2px_0px_#1a1a1a] dark:shadow-[2px_2px_0px_#000000]"
+                      : "text-slate-500 hover:text-slate-800 dark:hover:text-zinc-200"
+                      }`}
+                  >
+                    {t.home.sandbox.tabGacha}
                   </button>
                 </div>
 
@@ -523,7 +749,7 @@ export default function Home() {
                       />
                     </div>
                   </div>
-                ) : (
+                ) : simType === "mabar" ? (
                   <div className="space-y-4 animate-fadeIn">
                     <div className="space-y-1">
                       <label className="text-xs font-black uppercase text-slate-500 tracking-wider italic">{t.home.sandbox.playerName}</label>
@@ -581,6 +807,41 @@ export default function Home() {
                       />
                     </div>
                   </div>
+                ) : (
+                  <div className="space-y-4 animate-fadeIn">
+                    <div className="space-y-1">
+                      <label className="text-xs font-black uppercase text-slate-500 tracking-wider italic">{t.home.sandbox.donatorName}</label>
+                      <input
+                        type="text"
+                        value={simName}
+                        onChange={(e) => setSimName(e.target.value)}
+                        placeholder="Budi Roll"
+                        className="w-full h-11 px-3.5 border-2 border-zinc-950 dark:border-zinc-800 bg-white dark:bg-zinc-950 dark:text-white rounded-xl text-sm font-bold shadow-[2px_2px_0px_#1a1a1a] dark:shadow-[2px_2px_0px_#000000] transition-all outline-none focus:border-[#FFD551]"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-black uppercase text-slate-500 tracking-wider italic">Tarif Gacha Challenge (Rp)</label>
+                      <input
+                        type="text"
+                        value={simAmount}
+                        onChange={(e) => setSimAmount(e.target.value)}
+                        placeholder="35.000"
+                        className="w-full h-11 px-3.5 border-2 border-zinc-950 dark:border-zinc-800 bg-white dark:bg-zinc-950 dark:text-white rounded-xl text-sm font-bold shadow-[2px_2px_0px_#1a1a1a] dark:shadow-[2px_2px_0px_#000000] transition-all outline-none focus:border-[#FFD551]"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-black uppercase text-slate-500 tracking-wider italic">Pesan Tantangan Gacha</label>
+                      <textarea
+                        value={simMessage}
+                        onChange={(e) => setSimMessage(e.target.value)}
+                        placeholder="Bismillah dapet Mabar 5 game bang!"
+                        rows={3}
+                        className="w-full p-3.5 border-2 border-zinc-950 dark:border-zinc-800 bg-white dark:bg-zinc-950 dark:text-white rounded-xl text-sm font-bold shadow-[2px_2px_0px_#1a1a1a] dark:shadow-[2px_2px_0px_#000000] transition-all outline-none resize-none focus:border-[#FFD551]"
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -620,9 +881,77 @@ export default function Home() {
                     <span>{t.home.sandbox.ttsActive}</span>
                   </div>
 
+                  {/* GACHA WHEEL CANVAS FOR SANDBOX */}
+                  {showGachaWheel && (
+                    <motion.div
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      className="relative z-20 flex flex-col items-center"
+                    >
+                      <canvas
+                        ref={sandboxCanvasRef}
+                        width={180}
+                        height={180}
+                        className="max-w-full h-auto drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)] bg-transparent rounded-full"
+                      />
+                      <div className="absolute top-[-5px] left-1/2 -translate-x-1/2 z-30 filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]">
+                        <svg width="14" height="20" viewBox="0 0 32 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M16 42L0 12L32 12L16 42Z" fill="#FFD551" />
+                          <circle cx="16" cy="12" r="10" fill="#FFD551" />
+                          <circle cx="16" cy="12" r="5" fill="#09090b" />
+                        </svg>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* WINNER TROPHY CARD FOR SANDBOX GACHA */}
+                  <AnimatePresence>
+                    {showGachaWinnerCard && gachaWinnerItem && (
+                      <motion.div
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.8, opacity: 0 }}
+                        className="absolute inset-0 flex items-center justify-center z-40 p-4"
+                      >
+                        <div
+                          className="p-5 rounded-2xl border-2 border-[#FFD551] shadow-[0_0_25px_rgba(255,213,81,0.25)] flex flex-col items-center justify-center text-center max-w-[210px] w-full"
+                          style={{
+                            background: "radial-gradient(circle at center, #1E1E24 0%, #0A0A0C 100%)"
+                          }}
+                        >
+                          <div className="w-10 h-10 bg-[#FFD551]/10 rounded-full border border-[#FFD551] flex items-center justify-center mb-2 animate-bounce">
+                            <Trophy className="h-5 w-5 text-[#FFD551]" />
+                          </div>
+
+                          <span className="text-[8px] font-black uppercase tracking-widest text-emerald-400">
+                            SPIN SELESAI
+                          </span>
+
+                          <p className="text-[9px] font-semibold text-zinc-400 mt-1">
+                            Hadiah didapatkan oleh:
+                          </p>
+
+                          <p className="text-[10px] font-black text-[#FFD551] mt-0.5 bg-zinc-900/80 px-3 py-1 rounded-full border border-zinc-800">
+                            {sandboxGachaWinnerName}
+                          </p>
+
+                          <div className="mt-3 p-2 bg-zinc-900/60 rounded-xl border border-zinc-800 w-full">
+                            <span className="text-[7px] font-extrabold uppercase text-zinc-500 tracking-wider">
+                              REWARD GACHA:
+                            </span>
+                            <p className="text-[10px] font-black text-white uppercase mt-0.5 leading-snug tracking-wide italic">
+                              {gachaWinnerItem.name}
+                            </p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                   {/* Pop-up dynamic alert card */}
                   <AnimatePresence>
-                    {simulatedAlerts.map((alert) => (
+                    {!showGachaWheel && !showGachaWinnerCard && simulatedAlerts.map((alert) => (
                       <motion.div
                         key={alert.id}
                         initial={{ opacity: 0, scale: 0.8, y: -40 }}
@@ -636,7 +965,7 @@ export default function Home() {
 
                         <div className="space-y-1">
                           <h4 className="text-[10px] font-bold tracking-wider text-[#FFD551]">
-                            {alert.type === "donation" ? t.home.sandbox.newDonation : t.home.sandbox.newMabar}
+                            {alert.type === "gacha" ? "🎡 Gacha Challenge!" : (alert.type === "donation" ? t.home.sandbox.newDonation : t.home.sandbox.newMabar)}
                           </h4>
                           <h5 className="text-[12px] font-bold text-white truncate leading-none">
                             {alert.name}
@@ -667,7 +996,7 @@ export default function Home() {
                   </AnimatePresence>
 
                   {/* Empty alert notice */}
-                  {simulatedAlerts.length === 0 && (
+                  {simulatedAlerts.length === 0 && !showGachaWheel && !showGachaWinnerCard && (
                     <div className="text-center space-y-1.5 z-10 animate-pulse">
                       <div className="size-10 rounded-full bg-black/40 border border-white/10 mx-auto flex items-center justify-center text-slate-500">
                         <Tv className="size-5" />

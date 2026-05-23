@@ -1,4 +1,10 @@
 const prisma = require('../config/prisma');
+const jwt = require('jsonwebtoken');
+const speakeasy = require('speakeasy');
+const qrcode = require('qrcode');
+const { hashPassword, verifyPassword } = require('../config/admin-auth');
+const filterService = require('../services/filter.service');
+const { resolveMediaUrl } = require('../utils/mediaResolver');
 
 /**
  * 1. Fetch All Creators (Users)
@@ -6,6 +12,11 @@ const prisma = require('../config/prisma');
 async function getAllCreators(req, res) {
   try {
     const users = await prisma.user.findMany({
+      include: {
+        _count: {
+          select: { user_reports: true }
+        }
+      },
       orderBy: { createdAt: 'desc' }
     });
     
@@ -25,7 +36,8 @@ async function getAllCreators(req, res) {
         avatar_url: avatar,
         balance: parseFloat(u.balance),
         isVerified: u.is_verified,
-        status: u.status
+        status: u.status,
+        reportCount: u._count?.user_reports || 0
       };
     });
 
@@ -240,9 +252,17 @@ async function getAllTransactions(req, res) {
       include: {
         streamer: {
           select: { username: true, avatar_url: true }
-        }
+        },
+        gift: true
       },
       orderBy: { createdAt: 'desc' }
+    });
+
+    // Fetch gacha logs to identify gacha transactions
+    const gachaLogs = await prisma.gachaLog.findMany({
+      where: {
+        streamer_id: { in: transactions.map(t => t.streamer_id) }
+      }
     });
 
     const formatted = transactions.map(t => {
@@ -255,6 +275,16 @@ async function getAllTransactions(req, res) {
         avatar = `/avatars/avatar-${(sum % 8) + 1}.svg`;
       }
 
+      // Check if this transaction matches a GachaLog entry
+      const isGacha = gachaLogs.some(log => 
+        log.streamer_id === t.streamer_id &&
+        log.donor_name === t.sender_name &&
+        Math.abs(Number(log.amount) - Number(t.gross_amount)) < 0.01 &&
+        Math.abs(new Date(log.createdAt).getTime() - new Date(t.createdAt).getTime()) < 5000
+      );
+
+      const rawType = t.gift_id ? 'GIFT' : (isGacha ? 'GACHA' : t.type);
+
       return {
         id: t.id,
         reference_id: t.reference_id,
@@ -263,8 +293,10 @@ async function getAllTransactions(req, res) {
         sender: t.sender_name,
         amount: parseFloat(t.gross_amount),
         type: t.type,
+        raw_type: rawType,
         status: t.status,
         message: t.message || 'Dukungan untuk kreator!',
+        gift_name: t.gift ? t.gift.name : null,
         date: new Date(t.createdAt).toLocaleDateString('id-ID', {
           day: '2-digit',
           month: 'short',
@@ -286,7 +318,7 @@ async function getAllTransactions(req, res) {
  * 7. Simulate Live Transaction (Donation/Mabar Sandbox)
  */
 async function simulateTransaction(req, res) {
-  const { creatorUsername, senderName, senderEmail, amount, type, message, packageId, ingameId, mediashareUrl, originalAmount, currencyCode, quantity } = req.body;
+  const { creatorUsername, senderName, senderEmail, amount, type, message, packageId, ingameId, mediashareUrl, donation_media, originalAmount, currencyCode, quantity, giftId, soundboardItemId } = req.body;
 
   try {
     // Find creator user
@@ -316,25 +348,61 @@ async function simulateTransaction(req, res) {
       }
     }
 
+    let selectedGift = null;
+    if (giftId && type === 'DONATION') {
+      selectedGift = await prisma.systemGift.findFirst({
+        where: { id: giftId, isActive: true }
+      });
+      if (!selectedGift) {
+        return res.status(400).json({ success: false, message: 'Gift animasi tidak tersedia.' });
+      }
+
+      const disabledGift = await prisma.creatorGiftSetting.findFirst({
+        where: { userId: creator.id, giftId, isEnabled: false }
+      });
+      if (disabledGift) {
+        return res.status(400).json({ success: false, message: 'Gift animasi dinonaktifkan oleh kreator.' });
+      }
+    }
+
     // Fetch active fee percentages from DB settings
     let donationRate = 5.00;
     let mabarRate = 8.00;
+    let giftRate = 10.00;
     try {
       const activeSettings = await prisma.siteSetting.findFirst();
       if (activeSettings) {
         donationRate = parseFloat(activeSettings.feeDonation);
         mabarRate = parseFloat(activeSettings.feeMabar);
+        giftRate = parseFloat(activeSettings.feeGift || 10);
       }
     } catch (err) {
       console.error("Error loading active fee rates for transaction simulation:", err);
     }
 
-    const activeFeePercent = type === 'DONATION' ? donationRate : mabarRate;
+    const activeFeePercent = selectedGift ? giftRate : (type === 'DONATION' ? donationRate : mabarRate);
     const grossAmount = parseFloat(amount);
     const platformFee = (grossAmount * activeFeePercent) / 100;
     const netAmount = grossAmount - platformFee;
 
+    let normalizedMediashareUrl = mediashareUrl || null;
+    let normalizedDonationMedia = donation_media || null;
+    if (donation_media && ['YOUTUBE', 'TIKTOK', 'REELS'].includes(donation_media.media_type)) {
+      const resolvedMedia = resolveMediaUrl(donation_media.media_url || mediashareUrl, donation_media.media_type);
+      if (!resolvedMedia.valid) {
+        return res.status(400).json({ success: false, message: resolvedMedia.message });
+      }
+      normalizedMediashareUrl = resolvedMedia.normalizedUrl;
+      normalizedDonationMedia = {
+        ...donation_media,
+        media_type: resolvedMedia.mediaType,
+        media_url: resolvedMedia.normalizedUrl
+      };
+    }
+
     const trxRefId = `TRX-SIM-${Date.now().toString().slice(-6)}`;
+    const rawMessage = message || 'Simulasi dukungan dari superadmin sandbox!';
+    const filteredMessage = await filterService.filterMessageIfNeeded(creator.id, rawMessage);
 
     // Atomic transaction: Insert simulated payment + update creator balance
     const [transaction] = await prisma.$transaction([
@@ -351,20 +419,23 @@ async function simulateTransaction(req, res) {
           net_amount: netAmount,
           type: type || 'DONATION',
           status: 'SUCCESS',
-          message: message || 'Simulasi dukungan dari superadmin sandbox!',
-          mediashare_url: mediashareUrl || null,
-          donation_media: donation_media ? {
+          message: filteredMessage,
+          mediashare_url: normalizedMediashareUrl,
+          gift_id: selectedGift ? selectedGift.id : null,
+          soundboard_item_id: soundboardItemId || null,
+          donation_media: normalizedDonationMedia ? {
             create: {
-              media_type: donation_media.media_type,
-              media_url: donation_media.media_url,
-              duration: donation_media.duration ? parseInt(donation_media.duration) : undefined,
-              start_time: donation_media.start_time ? parseInt(donation_media.start_time) : undefined,
-              volume_multiplier: donation_media.volume_multiplier ? parseFloat(donation_media.volume_multiplier) : undefined
+              media_type: normalizedDonationMedia.media_type,
+              media_url: normalizedDonationMedia.media_url,
+              duration: normalizedDonationMedia.duration ? parseInt(normalizedDonationMedia.duration) : undefined,
+              start_time: normalizedDonationMedia.start_time ? parseInt(normalizedDonationMedia.start_time) : undefined,
+              volume_multiplier: normalizedDonationMedia.volume_multiplier ? parseFloat(normalizedDonationMedia.volume_multiplier) : undefined
             }
           } : undefined
         },
         include: {
-          donation_media: true
+          donation_media: true,
+          gift: true
         }
       }),
       prisma.user.update({
@@ -402,6 +473,109 @@ async function simulateTransaction(req, res) {
       const { getIO } = require('../config/socket');
       const io = getIO();
       if (io) {
+        // Fetch Soundboard item if purchased
+        let soundboardItem = null;
+        if (transaction.soundboard_item_id) {
+          try {
+            soundboardItem = await prisma.soundboardItem.findUnique({
+              where: { id: transaction.soundboard_item_id }
+            });
+          } catch (soundErr) {
+            console.warn('Failed to fetch soundboard item in simulation:', soundErr);
+          }
+        }
+
+        // Check Gacha settings
+        let gachaResult = null;
+        if (type === 'DONATION') {
+          try {
+            const gachaSetting = await prisma.gachaSetting.findUnique({
+              where: { streamer_id: creator.id }
+            });
+            const hasInteractiveMedia = !!(mediashareUrl || donation_media);
+            if (gachaSetting && gachaSetting.is_enabled && !hasInteractiveMedia && Number(grossAmount) >= Number(gachaSetting.min_donation)) {
+              const gachaItems = await prisma.gachaWheelItem.findMany({
+                where: { streamer_id: creator.id }
+              });
+              if (gachaItems.length > 0) {
+                const totalWeight = gachaItems.reduce((sum, item) => sum + (item.weight || 1), 0);
+                let randomNum = Math.random() * totalWeight;
+                let selectedItem = gachaItems[0];
+                for (const item of gachaItems) {
+                  randomNum -= (item.weight || 1);
+                  if (randomNum <= 0) {
+                    selectedItem = item;
+                    break;
+                  }
+                }
+                const loggedGacha = await prisma.gachaLog.create({
+                  data: {
+                    streamer_id: creator.id,
+                    donor_name: senderName || 'Anonymous',
+                    amount: grossAmount,
+                    reward_name: selectedItem.name
+                  }
+                });
+
+                 // Auto Mabar Queue integration if reward name contains mabar/main bareng (case-insensitive)
+                 const rewardNameLower = selectedItem.name.toLowerCase();
+                 if (rewardNameLower.includes('mabar') || rewardNameLower.includes('main bareng') || rewardNameLower.includes('main game')) {
+                  try {
+                    let slotsCount = 1;
+                    const match = selectedItem.name.match(/\d+/);
+                    if (match) {
+                      slotsCount = parseInt(match[0], 10);
+                    }
+
+                    // Get or create GamePackage
+                    let packageId;
+                    const activePackage = await prisma.gamePackage.findFirst({
+                      where: { streamer_id: creator.id, status: 'ACTIVE' }
+                    });
+                    if (activePackage) {
+                      packageId = activePackage.id;
+                    } else {
+                      const newPackage = await prisma.gamePackage.create({
+                        data: {
+                          streamer_id: creator.id,
+                          game_name: "Hadiah Gacha Wheel",
+                          price_per_slot: 0,
+                          status: "ACTIVE"
+                        }
+                      });
+                      packageId = newPackage.id;
+                    }
+
+                    // Create queue entry
+                    await prisma.mabarQueue.create({
+                      data: {
+                        transaction_id: transaction.id,
+                        package_id: packageId,
+                        ingame_nickname: senderName || 'Gacha Winner',
+                        ingame_id: 'Gacha Winner',
+                        status: 'WAITING',
+                        slots_count: slotsCount
+                      }
+                    });
+                    console.log(`[Simulation] Auto Mabar queue entry created for Gacha win: ${selectedItem.name}`);
+                  } catch (queueErr) {
+                    console.warn('Failed to auto create Mabar queue from Gacha reward in simulation:', queueErr);
+                  }
+                }
+                
+                gachaResult = {
+                  ...loggedGacha,
+                  items: gachaItems,
+                  duration_sec: gachaSetting.duration_sec,
+                  winnerIndex: gachaItems.findIndex(item => item.id === selectedItem.id)
+                };
+              }
+            }
+          } catch (gachaErr) {
+            console.warn('Failed to process Gacha trigger in simulation:', gachaErr);
+          }
+        }
+
         const donationMedia = transaction.donation_media;
         const isVideoMedia = donationMedia && ['YOUTUBE', 'TIKTOK', 'REELS'].includes(donationMedia.media_type);
 
@@ -413,17 +587,21 @@ async function simulateTransaction(req, res) {
             gross_amount: grossAmount,
             original_amount: originalAmount ? parseFloat(originalAmount) : grossAmount,
             currency_code: currencyCode || 'IDR',
-            message: message || '',
+            message: transaction.message || '',
             mediashare_url: mediaUrl,
             donation_media: donationMedia || null,
+            gift: transaction.gift || null,
+            soundboard: soundboardItem || null,
+            gacha: gachaResult || null,
             timestamp: new Date()
           };
           io.to(`mediashare:${creator.id}`).emit('alert:mediashare', payload);
         } else {
-          const eventName = type === 'DONATION' ? 'alert:donation' : 'alert:mabar';
+          const isGacha = !!gachaResult;
+          const eventName = isGacha ? 'alert:gacha' : (type === 'DONATION' ? 'alert:donation' : 'alert:mabar');
           const finalMsg = (type === 'MABAR' && bonusSlots > 0)
-            ? `${message || 'Pemesanan Jasa Mabar'} 🎉 (Promo: +${bonusSlots} Bonus Slot gratis! Total: ${finalSlots} Slot)`
-            : (message || '');
+            ? `${transaction.message || 'Pemesanan Jasa Mabar'} 🎉 (Promo: +${bonusSlots} Bonus Slot gratis! Total: ${finalSlots} Slot)`
+            : (transaction.message || '');
             
           io.to(`alert:${creator.id}`).emit(eventName, {
             id: transaction.id,
@@ -436,6 +614,9 @@ async function simulateTransaction(req, res) {
             ingame_nickname: senderName || 'Anonymous',
             ingame_id: ingameId || '1234567',
             donation_media: donationMedia || null,
+            gift: transaction.gift || null,
+            soundboard: soundboardItem || null,
+            gacha: gachaResult || null,
             timestamp: new Date()
           });
         }
@@ -592,9 +773,13 @@ async function getSettings(req, res) {
       keywords: "donasi, creator platform, streamer, game developer, coder, designer, treetmi, mabar",
       feeDonation: 5.00,
       feeMabar: 8.00,
+      feeGift: 10.00,
       ahuNumber: "",
       pseNumber: "",
       nibNumber: "",
+      ahuLogo: "",
+      pseLogo: "",
+      nibLogo: "",
       paymentGateway: "MIDTRANS",
       paymentSandbox: true,
       midtransMerchantId: "",
@@ -604,7 +789,14 @@ async function getSettings(req, res) {
       discordUrl: "",
       xUrl: "",
       instagramUrl: "",
-      tiktokUrl: ""
+      tiktokUrl: "",
+      showLeaderboard: false,
+      whatsappGateway: "SIMULATION",
+      whatsappApiKey: "",
+      whatsappSender: "",
+      whatsappTemplate: "Halo! 👾 Kreator favoritmu {creator} sekarang sedang LIVE streaming di Treetmi! Yuk nonton dan dukung di: {url}",
+      supportWhatsapp: "628123456789",
+      discordReportWebhook: ""
     };
 
     if (!settings) {
@@ -636,6 +828,7 @@ async function getSettings(req, res) {
       ...settings,
       feeDonation: parseFloat(settings.feeDonation),
       feeMabar: parseFloat(settings.feeMabar),
+      feeGift: parseFloat(settings.feeGift || 10),
       rates: rates
     };
 
@@ -651,10 +844,25 @@ async function getSettings(req, res) {
  */
 async function saveSettings(req, res) {
   try {
-    const { logoText, logoUrl, iconUrl, companyName, seoTitle, metaDesc, keywords, feeDonation, feeMabar, rates, ahuNumber, pseNumber, nibNumber, paymentGateway, paymentSandbox, midtransMerchantId, midtransClientKey, midtransServerKey, xenditApiKey, discordUrl, xUrl, instagramUrl, tiktokUrl } = req.body;
+    const { logoText, logoUrl, iconUrl, companyName, seoTitle, metaDesc, keywords, feeDonation, feeMabar, feeGift, rates, ahuNumber, pseNumber, nibNumber, ahuLogo, pseLogo, nibLogo, paymentGateway, paymentSandbox, midtransMerchantId, midtransClientKey, midtransServerKey, xenditApiKey, discordUrl, xUrl, instagramUrl, tiktokUrl, showLeaderboard, whatsappGateway, whatsappApiKey, whatsappSender, whatsappTemplate, supportWhatsapp, discordReportWebhook } = req.body;
     
     // Find if settings already exist
     let settings = await prisma.siteSetting.findFirst();
+
+    // Process optional base64 uploads (like other files/images)
+    let processedAhuLogo = ahuLogo || "";
+    let processedPseLogo = pseLogo || "";
+    let processedNibLogo = nibLogo || "";
+
+    if (processedAhuLogo && processedAhuLogo.startsWith("data:")) {
+      processedAhuLogo = await processBase64Upload(processedAhuLogo, "ahu-logo", "setting", "settings");
+    }
+    if (processedPseLogo && processedPseLogo.startsWith("data:")) {
+      processedPseLogo = await processBase64Upload(processedPseLogo, "pse-logo", "setting", "settings");
+    }
+    if (processedNibLogo && processedNibLogo.startsWith("data:")) {
+      processedNibLogo = await processBase64Upload(processedNibLogo, "nib-logo", "setting", "settings");
+    }
 
     const dataPayload = {
       logoText: logoText || "treetmi",
@@ -666,9 +874,13 @@ async function saveSettings(req, res) {
       keywords: keywords || "donasi, creator platform, streamer, game developer, coder, designer, treetmi, mabar",
       feeDonation: feeDonation !== undefined ? parseFloat(feeDonation) : 5.00,
       feeMabar: feeMabar !== undefined ? parseFloat(feeMabar) : 8.00,
+      feeGift: feeGift !== undefined ? parseFloat(feeGift) : 10.00,
       ahuNumber: ahuNumber || "",
       pseNumber: pseNumber || "",
       nibNumber: nibNumber || "",
+      ahuLogo: processedAhuLogo,
+      pseLogo: processedPseLogo,
+      nibLogo: processedNibLogo,
       paymentGateway: paymentGateway || "MIDTRANS",
       paymentSandbox: paymentSandbox !== undefined ? Boolean(paymentSandbox) : true,
       midtransMerchantId: midtransMerchantId || "",
@@ -678,7 +890,14 @@ async function saveSettings(req, res) {
       discordUrl: discordUrl || "",
       xUrl: xUrl || "",
       instagramUrl: instagramUrl || "",
-      tiktokUrl: tiktokUrl || ""
+      tiktokUrl: tiktokUrl || "",
+      showLeaderboard: showLeaderboard !== undefined ? Boolean(showLeaderboard) : false,
+      whatsappGateway: whatsappGateway || "SIMULATION",
+      whatsappApiKey: whatsappApiKey || "",
+      whatsappSender: whatsappSender || "",
+      whatsappTemplate: whatsappTemplate || "Halo! 👾 Kreator favoritmu {creator} sekarang sedang LIVE streaming di Treetmi! Yuk nonton dan dukung di: {url}",
+      supportWhatsapp: supportWhatsapp || "628123456789",
+      discordReportWebhook: discordReportWebhook || ""
     };
 
     if (settings) {
@@ -721,12 +940,13 @@ async function saveSettings(req, res) {
         ...settings,
         feeDonation: parseFloat(settings.feeDonation),
         feeMabar: parseFloat(settings.feeMabar),
+        feeGift: parseFloat(settings.feeGift || 10),
         rates: savedRates
       }
     });
   } catch (err) {
     console.error('Error saving settings to DB:', err);
-    res.status(500).json({ success: false, message: 'Server error saving settings.' });
+    res.status(500).json({ success: false, message: 'Server error saving settings.', error: err.message, stack: err.stack });
   }
 }
 
@@ -912,6 +1132,9 @@ async function processBase64Upload(base64Url, name, prefix = '', folder = 'uploa
     else if (mimeType.includes('svg')) ext = 'svg';
     else if (mimeType.includes('webp')) ext = 'webp';
     else if (mimeType.includes('jpeg') || mimeType.includes('jpg')) ext = 'jpg';
+    else if (mimeType.includes('mp3') || mimeType.includes('mpeg') || mimeType.includes('audio/mpeg')) ext = 'mp3';
+    else if (mimeType.includes('wav')) ext = 'wav';
+    else if (mimeType.includes('ogg')) ext = 'ogg';
     
     const cleanName = name.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
     const filename = prefix ? `${prefix}-${cleanName}-${Date.now()}.${ext}` : `${cleanName}-${Date.now()}.${ext}`;
@@ -1075,6 +1298,435 @@ async function deleteTrustBadge(req, res) {
   }
 }
 
+/**
+ * Auth 1. Login admin - Langkah 1 (Cek password)
+ */
+async function loginAdmin(req, res) {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ success: false, message: 'Username dan Password wajib diisi!' });
+  }
+
+  try {
+    const admin = await prisma.superadmin.findUnique({
+      where: { username: username.trim() }
+    });
+
+    if (!admin) {
+      return res.status(401).json({ success: false, message: 'Username atau Password salah!' });
+    }
+
+    const isMatch = verifyPassword(password, admin.password);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Username atau Password salah!' });
+    }
+
+    if (admin.twoFactorEnabled) {
+      return res.status(200).json({
+        success: true,
+        requires2FA: true,
+        username: admin.username,
+        message: 'Masukkan kode OTP 2FA Anda'
+      });
+    }
+
+    const token = jwt.sign(
+      { id: admin.id, username: admin.username, isAdmin: true },
+      process.env.JWT_SECRET || 'supersecretkey',
+      { expiresIn: '1d' }
+    );
+
+    return res.status(200).json({
+      success: true,
+      requires2FA: false,
+      token,
+      adminUser: admin.username,
+      message: 'Login berhasil!'
+    });
+  } catch (error) {
+    console.error('Error login admin:', error);
+    return res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
+  }
+}
+
+/**
+ * Auth 2. Login admin - Langkah 2 (Verifikasi OTP 2FA)
+ */
+async function loginAdmin2FA(req, res) {
+  const { username, token: otpToken } = req.body;
+  if (!username || !otpToken) {
+    return res.status(400).json({ success: false, message: 'Username dan Kode OTP wajib diisi!' });
+  }
+
+  try {
+    const admin = await prisma.superadmin.findUnique({
+      where: { username }
+    });
+
+    if (!admin || !admin.twoFactorEnabled || !admin.twoFactorSecret) {
+      return res.status(400).json({ success: false, message: 'Akses ditolak atau 2FA tidak aktif.' });
+    }
+
+    const verified = speakeasy.totp.verify({
+      secret: admin.twoFactorSecret,
+      encoding: 'base32',
+      token: otpToken,
+      window: 1
+    });
+
+    if (!verified) {
+      return res.status(401).json({ success: false, message: 'Kode OTP 2FA tidak valid atau kadaluarsa.' });
+    }
+
+    const token = jwt.sign(
+      { id: admin.id, username: admin.username, isAdmin: true },
+      process.env.JWT_SECRET || 'supersecretkey',
+      { expiresIn: '1d' }
+    );
+
+    return res.status(200).json({
+      success: true,
+      token,
+      adminUser: admin.username,
+      message: 'Login superadmin berhasil!'
+    });
+  } catch (error) {
+    console.error('Error login admin 2FA:', error);
+    return res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
+  }
+}
+
+/**
+ * Auth 3. Ganti password admin
+ */
+async function changePassword(req, res) {
+  const { currentPassword, newPassword } = req.body;
+  const adminId = req.admin.id;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ success: false, message: 'Password lama dan baru wajib diisi!' });
+  }
+
+  try {
+    const admin = await prisma.superadmin.findUnique({ where: { id: adminId } });
+    if (!admin) {
+      return res.status(404).json({ success: false, message: 'Admin tidak ditemukan.' });
+    }
+
+    const isMatch = verifyPassword(currentPassword, admin.password);
+    if (!isMatch) {
+      return res.status(400).json({ success: false, message: 'Password saat ini salah!' });
+    }
+
+    const hashedNew = hashPassword(newPassword);
+    await prisma.superadmin.update({
+      where: { id: adminId },
+      data: { password: hashedNew }
+    });
+
+    return res.status(200).json({ success: true, message: 'Password berhasil diubah!' });
+  } catch (error) {
+    console.error('Error change password:', error);
+    return res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
+  }
+}
+
+/**
+ * Auth 3.5. Get 2FA Status
+ */
+async function get2FAStatus(req, res) {
+  try {
+    const admin = await prisma.superadmin.findUnique({
+      where: { id: req.admin.id }
+    });
+    return res.status(200).json({
+      success: true,
+      enabled: admin ? admin.twoFactorEnabled : false
+    });
+  } catch (error) {
+    console.error('Error fetching 2FA status:', error);
+    return res.status(500).json({ success: false, message: 'Server error fetching 2FA status.' });
+  }
+}
+
+/**
+ * Auth 4. Setup 2FA (Generate secret & QR Code)
+ */
+async function setup2FA(req, res) {
+  const adminId = req.admin.id;
+
+  try {
+    const admin = await prisma.superadmin.findUnique({ where: { id: adminId } });
+    if (!admin) {
+      return res.status(404).json({ success: false, message: 'Admin tidak ditemukan.' });
+    }
+
+    const secret = speakeasy.generateSecret({
+      name: `Treetmi Superadmin (${admin.username})`,
+      issuer: 'Treetmi.id'
+    });
+
+    const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url);
+
+    return res.status(200).json({
+      success: true,
+      secret: secret.base32,
+      qrCodeUrl
+    });
+  } catch (error) {
+    console.error('Error setup 2FA:', error);
+    return res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
+  }
+}
+
+/**
+ * Auth 5. Enable 2FA (Verifikasi OTP pertama kali lalu aktifkan)
+ */
+async function enable2FA(req, res) {
+  const { secret, otpToken } = req.body;
+  const adminId = req.admin.id;
+
+  if (!secret || !otpToken) {
+    return res.status(400).json({ success: false, message: 'Secret dan OTP wajib diisi!' });
+  }
+
+  try {
+    const verified = speakeasy.totp.verify({
+      secret,
+      encoding: 'base32',
+      token: otpToken,
+      window: 1
+    });
+
+    if (!verified) {
+      return res.status(400).json({ success: false, message: 'Kode OTP tidak valid. Gagal mengaktifkan 2FA.' });
+    }
+
+    await prisma.superadmin.update({
+      where: { id: adminId },
+      data: {
+        twoFactorSecret: secret,
+        twoFactorEnabled: true
+      }
+    });
+
+    return res.status(200).json({ success: true, message: 'Two-Factor Authentication berhasil diaktifkan!' });
+  } catch (error) {
+    console.error('Error enable 2FA:', error);
+    return res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
+  }
+}
+
+/**
+ * Auth 6. Disable 2FA
+ */
+async function disable2FA(req, res) {
+  const adminId = req.admin.id;
+
+  try {
+    await prisma.superadmin.update({
+      where: { id: adminId },
+      data: {
+        twoFactorSecret: null,
+        twoFactorEnabled: false
+      }
+    });
+
+    return res.status(200).json({ success: true, message: 'Two-Factor Authentication dinonaktifkan.' });
+  } catch (error) {
+    console.error('Error disable 2FA:', error);
+    return res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
+  }
+}
+
+/**
+ * 23. Fetch All Filter Words
+ */
+async function getAllFilterWords(req, res) {
+  try {
+    const filterWords = await prisma.filterWord.findMany({
+      where: { userId: null },
+      orderBy: { word: 'asc' }
+    });
+    res.status(200).json({ success: true, data: filterWords });
+  } catch (err) {
+    console.error('Error fetching filter words:', err);
+    res.status(500).json({ success: false, message: 'Server error fetching filter words.' });
+  }
+}
+
+/**
+ * 24. Create Filter Word
+ */
+async function createFilterWord(req, res) {
+  const { word, type } = req.body;
+
+  try {
+    if (!word) {
+      return res.status(400).json({ success: false, message: 'Kata wajib diisi!' });
+    }
+
+    const cleanWord = word.trim().toLowerCase();
+
+    // Check if exists
+    const existing = await prisma.filterWord.findFirst({
+      where: { word: cleanWord, userId: null }
+    });
+
+    if (existing) {
+      return res.status(400).json({ success: false, message: `Kata "${cleanWord}" sudah terdaftar.` });
+    }
+
+    const newWord = await prisma.filterWord.create({
+      data: {
+        word: cleanWord,
+        type: type || 'GAMBLING',
+        userId: null
+      }
+    });
+
+    // Invalidate word cache
+    filterService.invalidateCache();
+
+    res.status(201).json({
+      success: true,
+      message: 'Kata sensor berhasil ditambahkan.',
+      data: newWord
+    });
+  } catch (err) {
+    console.error('Error creating filter word:', err);
+    res.status(500).json({ success: false, message: 'Server error creating filter word.' });
+  }
+}
+
+/**
+ * 24.5 Bulk Create Filter Words
+ */
+async function bulkCreateFilterWords(req, res) {
+  const { words, defaultType } = req.body;
+
+  try {
+    if (!words || !Array.isArray(words)) {
+      return res.status(400).json({ success: false, message: 'Data kata-kata wajib dikirim sebagai array!' });
+    }
+
+    const cleanWords = words
+      .map(item => {
+        const w = typeof item === 'string' ? item : item.word;
+        const t = typeof item === 'string' ? defaultType : (item.type || defaultType);
+        return {
+          word: w ? w.trim().toLowerCase() : '',
+          type: t === 'PROFANITY' ? 'PROFANITY' : 'GAMBLING'
+        };
+      })
+      .filter(item => item.word.length > 0);
+
+    if (cleanWords.length === 0) {
+      return res.status(400).json({ success: false, message: 'Tidak ada kata valid yang diunggah.' });
+    }
+
+    // Get existing global words to avoid duplicates
+    const existing = await prisma.filterWord.findMany({
+      where: { userId: null },
+      select: { word: true }
+    });
+    const existingSet = new Set(existing.map(e => e.word.toLowerCase()));
+
+    // Deduplicate incoming list internally and against DB
+    const finalWordsToInsert = [];
+    const seenInBatch = new Set();
+
+    for (const item of cleanWords) {
+      if (!existingSet.has(item.word) && !seenInBatch.has(item.word)) {
+        finalWordsToInsert.push({
+          word: item.word,
+          type: item.type,
+          userId: null
+        });
+        seenInBatch.add(item.word);
+      }
+    }
+
+    if (finalWordsToInsert.length > 0) {
+      await prisma.filterWord.createMany({
+        data: finalWordsToInsert,
+        skipDuplicates: true
+      });
+      // Invalidate filter cache
+      filterService.invalidateCache();
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `${finalWordsToInsert.length} kata sensor berhasil diimpor secara massal.`,
+      insertedCount: finalWordsToInsert.length,
+      skippedCount: cleanWords.length - finalWordsToInsert.length
+    });
+  } catch (err) {
+    console.error('Error bulk creating filter words:', err);
+    res.status(500).json({ success: false, message: 'Server error bulk creating filter words.' });
+  }
+}
+
+/**
+ * 25. Delete Filter Word
+ */
+async function deleteFilterWord(req, res) {
+  const { id } = req.params;
+
+  try {
+    const wordExists = await prisma.filterWord.findUnique({
+      where: { id }
+    });
+
+    if (!wordExists) {
+      return res.status(404).json({ success: false, message: 'Kata sensor tidak ditemukan.' });
+    }
+
+    await prisma.filterWord.delete({
+      where: { id }
+    });
+
+    // Invalidate word cache
+    filterService.invalidateCache();
+
+    res.status(200).json({
+      success: true,
+      message: 'Kata sensor berhasil dihapus.'
+    });
+  } catch (err) {
+    console.error('Error deleting filter word:', err);
+    res.status(500).json({ success: false, message: 'Server error deleting filter word.' });
+  }
+}
+
+/**
+ * Fetch WhatsApp delivery/broadcast logs
+ */
+async function getWhatsappLogs(req, res) {
+  try {
+    const logs = await prisma.whatsappBroadcastLog.findMany({
+      include: {
+        streamer: {
+          select: {
+            username: true,
+            avatar_url: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: 200 // limit to last 200 logs for performance
+    });
+
+    res.status(200).json({ success: true, data: logs });
+  } catch (error) {
+    console.error('[getWhatsappLogs Error]', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
 // Trigger hot reload with newly generated Prisma Client
 module.exports = {
   getAllCreators,
@@ -1094,5 +1746,17 @@ module.exports = {
   getAllTrustBadges,
   createTrustBadge,
   updateTrustBadge,
-  deleteTrustBadge
+  deleteTrustBadge,
+  loginAdmin,
+  loginAdmin2FA,
+  changePassword,
+  get2FAStatus,
+  setup2FA,
+  enable2FA,
+  disable2FA,
+  getAllFilterWords,
+  createFilterWord,
+  bulkCreateFilterWords,
+  deleteFilterWord,
+  getWhatsappLogs
 };

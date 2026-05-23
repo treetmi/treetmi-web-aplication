@@ -18,7 +18,17 @@ interface MediashareAlert {
   currency_code?: string
   message: string
   mediashare_url: string
+  donation_media?: {
+    media_type?: "YOUTUBE" | "TIKTOK" | "REELS" | "VOICE_NOTE" | "TEBAK_GAMBAR"
+    media_url?: string | null
+  } | null
   timestamp: Date
+}
+
+interface WidgetSettings {
+  tts_enabled?: boolean
+  tts_speed?: number
+  tts_pitch?: number
 }
 
 function getYouTubeId(url: string | null | undefined): string | null {
@@ -38,6 +48,10 @@ function getYouTubeId(url: string | null | undefined): string | null {
   return (match && match[2].length === 11) ? match[2] : null
 }
 
+function isYouTubeShort(url: string | null | undefined): boolean {
+  return !!url && url.includes("/shorts/")
+}
+
 function getTikTokId(url: string | null | undefined): string | null {
   if (!url) return null
   const match = url.match(/\/video\/(\d+)/)
@@ -50,8 +64,21 @@ function getInstagramReelId(url: string | null | undefined): string | null {
   return match ? match[2] : null
 }
 
-function getMediaType(url: string | null | undefined): "YOUTUBE" | "TIKTOK" | "REELS" | null {
+function isDirectVideoUrl(url: string | null | undefined): boolean {
+  if (!url) return false
+  return /\.(mp4|webm|mov)(\?|#|$)/i.test(url) || url.includes("/uploads/mediashare-cache/")
+}
+
+function toPlayableUrl(url: string | null | undefined): string {
+  if (!url) return ""
+  if (url.startsWith("/uploads/")) return `${BACKEND_URL}${url}`
+  return url
+}
+
+function getMediaType(url: string | null | undefined, explicitType?: string | null): "YOUTUBE" | "TIKTOK" | "REELS" | null {
+  if (explicitType && ["YOUTUBE", "TIKTOK", "REELS"].includes(explicitType)) return explicitType as "YOUTUBE" | "TIKTOK" | "REELS"
   if (!url) return null
+  if (isDirectVideoUrl(url)) return "REELS"
   if (getYouTubeId(url)) return "YOUTUBE"
   if (url.includes("tiktok.com")) return "TIKTOK"
   if (url.includes("instagram.com")) return "REELS"
@@ -78,6 +105,7 @@ function WidgetMediashareContent() {
   const queueRef = useRef<MediashareAlert[]>([])
   const isPlayingRef = useRef(false)
   const playerRef = useRef<any>(null)
+  const widgetSettingsRef = useRef<WidgetSettings>({ tts_enabled: true, tts_speed: 1, tts_pitch: 1.1 })
 
   // Web Speech API / Audio Context Activation
   const activateAudio = useCallback(() => {
@@ -85,9 +113,45 @@ function WidgetMediashareContent() {
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
       ctx.resume().then(() => ctx.close())
+      const utterance = new SpeechSynthesisUtterance("")
+      utterance.volume = 0
+      window.speechSynthesis.speak(utterance)
+      window.speechSynthesis.cancel()
     } catch {}
     setAudioActivated(true)
   }, [audioActivated])
+
+  const speak = useCallback((text: string) => {
+    return new Promise<void>((resolve) => {
+      if (typeof window === "undefined" || !window.speechSynthesis || !text.trim()) {
+        resolve()
+        return
+      }
+
+      const settings = widgetSettingsRef.current
+      if (settings.tts_enabled === false) {
+        resolve()
+        return
+      }
+
+      window.speechSynthesis.cancel()
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.lang = "id-ID"
+
+      const voices = window.speechSynthesis.getVoices()
+      const idVoice = voices.find(v => v.lang.startsWith("id")) || voices.find(v => v.lang.startsWith("en")) || voices[0]
+      if (idVoice) utterance.voice = idVoice
+
+      utterance.rate = settings.tts_speed || 1
+      utterance.pitch = settings.tts_pitch || 1.1
+      utterance.volume = 1
+      utterance.onend = () => resolve()
+      utterance.onerror = () => resolve()
+      window.speechSynthesis.speak(utterance)
+
+      setTimeout(resolve, 30000)
+    })
+  }, [])
 
   // Play entry alert sound effect
   const playSoundEffect = useCallback(() => {
@@ -115,9 +179,17 @@ function WidgetMediashareContent() {
     const alert = queueRef.current.shift()!
     setCurrentAlert(alert)
     playSoundEffect()
+    const mediaType = getMediaType(alert.mediashare_url, alert.donation_media?.media_type)
+    const mediaLabel = mediaType === "TIKTOK" ? "video TikTok" : mediaType === "REELS" ? "Instagram Reels" : "video YouTube"
+    const amountFormatted = `${Number(alert.gross_amount).toLocaleString("id-ID")} rupiah`
+    const messageText = alert.message?.trim() ? ` Pesan: ${alert.message.trim()}` : ""
+    const ttsText = `Halo ${alert.sender_name}! Mengirimkan ${mediaLabel} sebesar ${amountFormatted}.${messageText}`
+    setTimeout(() => {
+      speak(ttsText)
+    }, 900)
 
     // We will let the YouTube IFrame Player API handle the end state to clear currentAlert
-  }, [playSoundEffect])
+  }, [playSoundEffect, speak])
 
   const enqueueAlert = useCallback((alert: MediashareAlert) => {
     queueRef.current.push(alert)
@@ -127,6 +199,9 @@ function WidgetMediashareContent() {
   // YouTube API callback when video finishes playing
   const onVideoEnd = useCallback(() => {
     setCurrentAlert(null)
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel()
+    }
     isPlayingRef.current = false
     // Jeda 1.5 detik sebelum memutar video berikutnya
     setTimeout(processNextAlert, 1500)
@@ -136,12 +211,12 @@ function WidgetMediashareContent() {
   useEffect(() => {
     if (!currentAlert) return
 
-    const mediaType = getMediaType(currentAlert.mediashare_url)
+    const mediaType = getMediaType(currentAlert.mediashare_url, currentAlert.donation_media?.media_type)
     if (mediaType === "TIKTOK" || mediaType === "REELS") {
-      // Skip after 30 seconds
+      // TikTok/Reels embeds do not expose a reliable ended event, so use a short overlay window.
       const timer = setTimeout(() => {
         onVideoEnd()
-      }, 30000)
+      }, 20000)
       return () => clearTimeout(timer)
     }
 
@@ -216,6 +291,11 @@ function WidgetMediashareContent() {
           const settingsJson = await settingsRes.json()
           if (settingsJson.success) {
             setColorDonation(settingsJson.data.color_donation || "#FFD551")
+            widgetSettingsRef.current = {
+              tts_enabled: settingsJson.data.tts_enabled ?? true,
+              tts_speed: settingsJson.data.tts_speed ?? 1,
+              tts_pitch: settingsJson.data.tts_pitch ?? 1.1
+            }
           }
         } catch {}
 
@@ -223,7 +303,6 @@ function WidgetMediashareContent() {
         socketRef.current = socket
         socket.on("connect", () => {
           setIsConnected(true)
-          socket.emit("join-streamer", info.streamer_id)
           socket.emit("join-room", `mediashare:${info.streamer_id}`)
         })
         socket.on("disconnect", () => setIsConnected(false))
@@ -234,6 +313,7 @@ function WidgetMediashareContent() {
             gross_amount: data.gross_amount,
             message: data.message || "",
             mediashare_url: data.mediashare_url,
+            donation_media: data.donation_media || null,
             timestamp: new Date(data.timestamp)
           })
         })
@@ -245,11 +325,21 @@ function WidgetMediashareContent() {
     return () => { socketRef.current?.disconnect() }
   }, [token, enqueueAlert])
 
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.getVoices()
+      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices()
+    }
+  }, [])
+
   const formatCurrency = (amount: number) => {
     return `Rp ${Number(amount).toLocaleString("id-ID")}`
   }
 
   const ytid = currentAlert ? getYouTubeId(currentAlert.mediashare_url) : null
+  const mediaType = currentAlert ? getMediaType(currentAlert.mediashare_url, currentAlert.donation_media?.media_type) : null
+  const isPortraitMedia = mediaType === "TIKTOK" || mediaType === "REELS" || isYouTubeShort(currentAlert?.mediashare_url)
+  const isNativeVideo = currentAlert ? isDirectVideoUrl(currentAlert.mediashare_url) : false
 
   return (
     <div
@@ -280,58 +370,78 @@ function WidgetMediashareContent() {
               animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={{ y: -50, opacity: 0, scale: 0.9 }}
               transition={{ type: "spring", stiffness: 280, damping: 22 }}
-              className="w-[560px] max-w-full px-4"
+              className={cn("pointer-events-auto max-w-full px-4", isPortraitMedia ? "w-[390px]" : "w-[560px]")}
               style={{ transform: `scale(${scale})`, transformOrigin: "center center" }} // DYNAMIC VIEWPORT SCALING
             >
-              {/* Single Unified Cyberpunk TV Branded Frame */}
-              <div className={cn(
-                "overflow-hidden rounded-3xl border shadow-[0_20px_50px_rgba(0,0,0,0.35)]",
-                isDark 
-                  ? "border-zinc-800 bg-[#0B0C10]/95 backdrop-blur-md shadow-[0_0_30px_rgba(255,213,81,0.15)]"
-                  : "border-[#E5E3DD] bg-[#FAF9F6] shadow-[0_15px_45px_rgba(0,0,0,0.06)]"
-              )}>
-                
-                {/* Header Branded Console */}
+              <div className="space-y-4">
+                {/* Video Playback Container */}
                 <div className={cn(
-                  "flex items-center justify-between px-6 py-3 border-b",
-                  isDark ? "bg-[#0B0C10]/95 border-zinc-800" : "bg-[#FAF9F6] border-[#E5E3DD]"
+                  "relative mx-auto overflow-hidden border bg-black shadow-[0_18px_45px_rgba(0,0,0,0.35)]",
+                  isPortraitMedia ? "aspect-[9/16] w-[min(330px,82vw)] rounded-[28px]" : "aspect-video w-full rounded-3xl",
+                  isDark ? "border-zinc-800" : "border-[#1A1A19]/15"
                 )}>
-                  <span className={cn(
-                    "text-[10px] font-black uppercase tracking-widest italic flex items-center gap-2",
-                    isDark ? "text-zinc-400" : "text-[#706E68]"
-                  )}>
-                    📺 Treetmi Mediashare Active Player
-                  </span>
-                  <div className="flex gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-red-400" />
-                    <span className="h-2 w-2 rounded-full bg-yellow-400" />
-                    <span className="h-2 w-2 rounded-full bg-green-400" />
-                  </div>
-                </div>
-
-                {/* Video Playback Container (16:9) */}
-                <div className="relative aspect-video w-full bg-black">
-                  {getMediaType(currentAlert.mediashare_url) === "YOUTUBE" && ytid ? (
+                  {isNativeVideo ? (
+                    <video
+                      src={toPlayableUrl(currentAlert.mediashare_url)}
+                      className="absolute inset-0 h-full w-full object-cover"
+                      autoPlay
+                      playsInline
+                      controls={false}
+                      onCanPlay={(event) => {
+                        const video = event.currentTarget
+                        video.muted = false
+                        video.volume = 1
+                        video.play().catch(() => {
+                          video.muted = true
+                          video.play().catch(() => {})
+                        })
+                      }}
+                      onEnded={onVideoEnd}
+                    />
+                  ) : mediaType === "YOUTUBE" && ytid ? (
                     <iframe
                       id={`yt-player-${currentAlert.id}`}
                       src={`https://www.youtube.com/embed/${ytid}?enablejsapi=1&autoplay=1&mute=0&controls=0&modestbranding=1&rel=0&iv_load_policy=3`}
-                      className="absolute inset-0 h-full w-full pointer-events-none border-none"
-                      allow="autoplay; encrypted-media"
+                      className="absolute inset-0 h-full w-full border-none"
+                      allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
                       allowFullScreen
                     />
-                  ) : getMediaType(currentAlert.mediashare_url) === "TIKTOK" && getTikTokId(currentAlert.mediashare_url) ? (
+                  ) : mediaType === "TIKTOK" && getTikTokId(currentAlert.mediashare_url) ? (
                     <iframe
-                      src={`https://www.tiktok.com/embed/v2/${getTikTokId(currentAlert.mediashare_url)}`}
-                      className="absolute inset-0 h-full w-full pointer-events-none border-none"
-                      allow="autoplay; encrypted-media"
+                      src={`https://www.tiktok.com/player/v1/${getTikTokId(currentAlert.mediashare_url)}?autoplay=1&controls=0&progress_bar=1&play_button=1&volume_control=0&fullscreen_button=0&timestamp=0&music_info=0&description=0&rel=0&native_context_menu=0&muted=0`}
+                      className="absolute inset-0 h-full w-full border-none"
+                      allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
                       allowFullScreen
+                      onLoad={(event) => {
+                        const frame = event.currentTarget
+                        const unMute = () => frame.contentWindow?.postMessage({ type: "unMute", "x-tiktok-player": true }, "https://www.tiktok.com")
+                        const play = () => frame.contentWindow?.postMessage({ type: "play", "x-tiktok-player": true }, "https://www.tiktok.com")
+                        const start = () => {
+                          unMute()
+                          play()
+                        }
+                        setTimeout(start, 250)
+                        setTimeout(start, 900)
+                        setTimeout(start, 1800)
+                      }}
                     />
-                  ) : getMediaType(currentAlert.mediashare_url) === "REELS" && getInstagramReelId(currentAlert.mediashare_url) ? (
-                    <iframe
-                      src={`https://www.instagram.com/reel/${getInstagramReelId(currentAlert.mediashare_url)}/embed`}
-                      className="absolute inset-0 h-full w-full pointer-events-none border-none"
-                      allowFullScreen
-                    />
+                  ) : mediaType === "REELS" && getInstagramReelId(currentAlert.mediashare_url) ? (
+                    <div className="absolute inset-0 overflow-hidden bg-black">
+                      <iframe
+                        src={`https://www.instagram.com/reel/${getInstagramReelId(currentAlert.mediashare_url)}/embed?autoplay=1&mute=1&muted=1`}
+                        className="absolute left-1/2 top-[-78px] h-[calc(100%+180px)] w-full origin-top -translate-x-1/2 scale-[1.45] border-none"
+                        allow="autoplay; encrypted-media; fullscreen; picture-in-picture; web-share"
+                        allowFullScreen
+                        scrolling="no"
+                        onLoad={(event) => {
+                          const frame = event.currentTarget
+                          const play = () => frame.contentWindow?.postMessage({ type: "play" }, "https://www.instagram.com")
+                          setTimeout(play, 300)
+                          setTimeout(play, 1000)
+                          setTimeout(play, 2000)
+                        }}
+                      />
+                    </div>
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center text-xs font-black italic text-red-500">
                       Format Link Media Tidak Valid (Dukung YouTube, TikTok, dan Instagram Reels)
@@ -339,27 +449,44 @@ function WidgetMediashareContent() {
                   )}
                 </div>
 
-                {/* Integrated Info Bar (Directly Attached Underneath) */}
-                <div 
-                  className="px-6 py-5 border-t text-black"
-                  style={{ backgroundColor: colorDonation, borderColor: isDark ? "rgba(0,0,0,0.08)" : "#E5E3DD" }}
-                >
-                  <div className="flex items-center justify-between gap-3 text-black">
-                    <span className="font-black text-sm md:text-base uppercase tracking-wide truncate">
-                      {currentAlert.sender_name}
-                    </span>
-                    <span className="font-black text-base md:text-lg italic tracking-tight flex-shrink-0">
-                      {formatCurrency(currentAlert.gross_amount)}
-                    </span>
+                {/* Broadcast-style lower third */}
+                <div className={cn(
+                  "mx-auto text-center",
+                  isPortraitMedia ? "w-[min(330px,82vw)]" : "w-full max-w-[520px]"
+                )}>
+                  <div
+                    className="grid grid-cols-[minmax(0,1fr)_auto] overflow-hidden rounded-[24px] border-2 border-black shadow-[0_12px_30px_rgba(0,0,0,0.18)]"
+                    style={{ backgroundColor: colorDonation }}
+                  >
+                    <div className="min-w-0 px-5 py-2.5 text-left">
+                      <p className="text-[8px] font-black uppercase tracking-[0.22em] text-black/50">
+                        Dari
+                      </p>
+                      <p className="truncate text-sm md:text-base font-black uppercase tracking-wide text-black">
+                        {currentAlert.sender_name}
+                      </p>
+                    </div>
+                    <div className="flex items-center rounded-l-[22px] bg-black px-4 md:px-5">
+                      <span
+                        className="whitespace-nowrap text-base md:text-lg font-black italic tracking-tight"
+                        style={{ color: colorDonation }}
+                      >
+                        {formatCurrency(currentAlert.gross_amount)}
+                      </span>
+                    </div>
                   </div>
-                  
                   {currentAlert.message && (
-                    <p className="text-xs md:text-sm font-semibold italic mt-2.5 leading-relaxed text-black/85 border-t border-black/10 pt-2.5">
-                      &ldquo;{currentAlert.message}&rdquo;
-                    </p>
+                    <div
+                      className="relative mt-2 overflow-hidden rounded-[20px] border-2 border-black px-5 py-3 shadow-[0_12px_30px_rgba(0,0,0,0.16)]"
+                      style={{ backgroundColor: colorDonation }}
+                    >
+                      <div className="pointer-events-none absolute inset-y-0 left-0 w-2 bg-black" />
+                      <p className="text-sm md:text-base font-black italic leading-snug tracking-wide text-black">
+                        &ldquo;{currentAlert.message}&rdquo;
+                      </p>
+                    </div>
                   )}
                 </div>
-
               </div>
             </motion.div>
           )}

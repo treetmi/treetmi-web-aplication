@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react"
 import { 
-  Gamepad2, ShieldCheck, Mail, Download, Loader2, ArrowLeft, Plus, Minus, Flame, Coins, Lock, Unlock
+  Gamepad2, ShieldCheck, Mail, Download, Loader2, ArrowLeft, Plus, Minus, Flame, Coins, Lock, Unlock, Sparkles
 } from "lucide-react"
 import { useCurrency } from "@/components/currency-provider"
 import { useLanguage } from "@/components/language-provider"
@@ -23,6 +23,7 @@ interface PaymentMethod {
 }
 
 interface MabarTabProps {
+  mode?: "MABAR" | "KARYA"
   creatorDbData: any
   displayUsername: string
   config: any
@@ -34,17 +35,28 @@ interface MabarTabProps {
     quantity: number
     message: string
   }) => Promise<void>
+  onProjectSubmit?: (projectData: {
+    projectId: string
+    title: string
+    amount: string
+    email: string
+    name: string
+    message: string
+  }) => Promise<void>
 }
 
 export function MabarTab({
+  mode = "MABAR",
   creatorDbData,
   displayUsername,
   config,
   visiblePackages,
-  onMabarSubmit
+  onMabarSubmit,
+  onProjectSubmit
 }: MabarTabProps) {
   const { currency, convertFromIdr, convertToIdr, format: formatCurrency } = useCurrency()
   const { lang, t } = useLanguage()
+  const isIndo = lang === "id"
 
   // Selected package states
   const [selectedPkg, setSelectedPkg] = useState<any | null>(null)
@@ -61,6 +73,11 @@ export function MabarTab({
   const [isTermsConfirmed, setIsTermsConfirmed] = useState(false)
   const [isTermsModalOpen, setIsTermsModalOpen] = useState(false)
 
+  // Project Checkout states
+  const [projectEmail, setProjectEmail] = useState("")
+  const [projectName, setProjectName] = useState("")
+  const [projectMessage, setProjectMessage] = useState("")
+
   // Fetch active payment channels from API
   useEffect(() => {
     const fetchPaymentMethods = async () => {
@@ -75,7 +92,7 @@ export function MabarTab({
               id: ch.code || ch.id,
               name: ch.name,
               logo: ch.logoUrl.startsWith("http") ? ch.logoUrl : `${API_BASE_URL.replace('/api/v1', '')}${ch.logoUrl}`,
-              fee: feeVal > 0 ? (isPercent ? `${feeVal}%` : `Rp ${feeVal.toLocaleString("id-ID")}`) : "Gratis",
+              fee: feeVal > 0 ? (isPercent ? `${feeVal}%` : `Rp ${feeVal.toLocaleString("id-ID")}`) : (isIndo ? "Gratis" : "Free"),
               feeAmount: feeVal,
               feeType: isPercent ? 'percent' : 'fixed'
             }
@@ -96,7 +113,7 @@ export function MabarTab({
       }
     }
     fetchPaymentMethods()
-  }, [])
+  }, [isIndo])
 
   // Digital Asset states
   const [unlockEmail, setUnlockEmail] = useState("")
@@ -108,7 +125,7 @@ export function MabarTab({
   const handleUnlockAccess = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!unlockEmail || !creatorDbData?.id) {
-      toast.error("Masukkan alamat email Anda.")
+      toast.error(isIndo ? "Masukkan alamat email Anda." : "Please enter your email address.")
       return
     }
 
@@ -126,16 +143,20 @@ export function MabarTab({
 
         const unlockedCount = (json.data.projects || []).filter((p: any) => p.unlocked).length
         if (unlockedCount > 0) {
-          toast.success(`${unlockedCount} karya digital berhasil dibuka! 🎉`)
+          toast.success(isIndo 
+            ? `${unlockedCount} karya digital berhasil dibuka! 🎉` 
+            : `${unlockedCount} digital creations successfully unlocked! 🎉`)
         } else {
-          toast.info("Belum ada karya yang terbuka. Kirim dukungan untuk mengakses file!")
+          toast.info(isIndo 
+            ? "Belum ada karya yang terbuka. Kirim dukungan untuk mengakses file!" 
+            : "No unlocked creations yet. Send support to access the files!")
         }
       } else {
-        toast.error(json.message || "Gagal memverifikasi akses.")
+        toast.error(json.message || (isIndo ? "Gagal memverifikasi akses." : "Failed to verify access."))
       }
     } catch (err) {
       console.error(err)
-      toast.error("Gagal menghubungi server.")
+      toast.error(isIndo ? "Gagal menghubungi server." : "Failed to connect to the server.")
     } finally {
       setIsCheckingAccess(false)
     }
@@ -144,7 +165,7 @@ export function MabarTab({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!mabarIgn || !mabarId) {
-      toast.error("Mohon isi Nickname dan ID game Anda!")
+      toast.error(isIndo ? "Mohon isi Nickname dan ID game Anda!" : "Please fill in your Nickname and Game ID!")
       return
     }
 
@@ -168,21 +189,49 @@ export function MabarTab({
     }
   }
 
-  const hasOnlyProjects = visiblePackages.length > 0 && visiblePackages.every((pkg: any) => pkg.type === "PROJECT")
+  const handleProjectSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!projectEmail) {
+      toast.error(isIndo ? "Mohon isi Email Anda!" : "Please fill in your Email!")
+      return
+    }
 
-  // If a package is selected, show its dedicated modular inline checkout form
+    setIsSubmitting(true)
+    try {
+      if (onProjectSubmit) {
+        await onProjectSubmit({
+          projectId: selectedPkg.id,
+          title: selectedPkg.gameName,
+          amount: selectedPkg.price.toString(),
+          email: projectEmail,
+          name: projectName,
+          message: projectMessage
+        })
+      }
+      setProjectEmail("")
+      setProjectName("")
+      setProjectMessage("")
+      setSelectedPkg(null)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const hasOnlyProjects = visiblePackages.length > 0 && visiblePackages.every((pkg: any) => pkg.type === "PROJECT")
   if (selectedPkg) {
+    const isProject = selectedPkg.type === "PROJECT"
+
     const buyThreshold = creatorDbData?.mabar_promo_buy || 0
     const freeBonus = creatorDbData?.mabar_promo_get || 0
     
     let bonusSlots = 0
-    if (buyThreshold > 0 && freeBonus > 0 && mabarQuantity >= buyThreshold) {
+    if (!isProject && buyThreshold > 0 && freeBonus > 0 && mabarQuantity >= buyThreshold) {
       bonusSlots = Math.floor(mabarQuantity / buyThreshold) * freeBonus
     }
-    const totalSlots = mabarQuantity + bonusSlots
-    const paidTotalVal = selectedPkg.price * mabarQuantity
+    const totalSlots = isProject ? 1 : mabarQuantity + bonusSlots
+    const paidTotalVal = selectedPkg.price * (isProject ? 1 : mabarQuantity)
 
-    // Fee calculation for mabar
+    // Fee calculation for mabar / project
     const mabarFee = selectedPayment
       ? selectedPayment.feeType === 'fixed'
         ? selectedPayment.feeAmount
@@ -191,14 +240,14 @@ export function MabarTab({
     const mabarTotalWithFee = paidTotalVal + mabarFee
 
     return (
-      <form onSubmit={handleSubmit} className="space-y-4 animate-fadeIn">
+      <form onSubmit={isProject ? handleProjectSubmit : handleSubmit} className="space-y-4 animate-fadeIn">
         {/* Back Button */}
         <button
           type="button"
           onClick={() => setSelectedPkg(null)}
           className="flex items-center gap-1.5 text-xs font-black uppercase italic text-slate-500 hover:text-black transition-colors"
         >
-          <ArrowLeft className="h-4 w-4" /> Kembali ke Katalog layanannya
+          <ArrowLeft className="h-4 w-4" /> {isIndo ? (isProject ? "Kembali ke Katalog Karya" : "Kembali ke Katalog Layanan") : "Back to Catalog"}
         </button>
 
         {/* Selected Package Header summary */}
@@ -211,7 +260,7 @@ export function MabarTab({
                 className="h-10 w-10 rounded-xl object-cover border border-[#FFD551]/20 shadow-sm"
               />
             ) : (
-              <span className="text-2xl shrink-0">{selectedPkg.image || "🎮"}</span>
+              <span className="text-2xl shrink-0">{selectedPkg.image || <Gamepad2 className="h-6 w-6 text-[#FFD551]" />}</span>
             )}
             <div className="flex flex-col">
               <span className="text-xs font-black uppercase italic leading-none">{selectedPkg.packageName}</span>
@@ -221,127 +270,192 @@ export function MabarTab({
           <span className="text-sm font-black italic text-red-500 shrink-0">{formatCurrency(selectedPkg.price)}</span>
         </div>
 
-        {/* Quantity Slot Selector */}
-        <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl dark:bg-zinc-900 dark:border-zinc-800 space-y-3.5 shadow-sm">
-          <div className="flex justify-between items-center">
-            <div className="space-y-0.5">
-              <Label className="text-[10px] font-black uppercase tracking-widest italic text-slate-500 dark:text-[#A09E96]">
-                Jumlah Slot Game
-              </Label>
-              <p className="text-[9px] font-semibold text-slate-400 italic">Tentukan berapa kali mabar</p>
+        {/* Quantity Slot Selector (Only for Mabar) */}
+        {!isProject ? (
+          <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl dark:bg-zinc-900 dark:border-zinc-800 space-y-3.5 shadow-sm">
+            <div className="flex justify-between items-center">
+              <div className="space-y-0.5 text-left">
+                <Label className="text-[10px] font-black uppercase tracking-widest italic text-slate-500 dark:text-[#A09E96]">
+                  {isIndo ? "Jumlah Slot Game" : "Number of Game Slots"}
+                </Label>
+                <p className="text-[9px] font-semibold text-slate-400 italic">{isIndo ? "Tentukan berapa kali mabar" : "Determine how many play sessions"}</p>
+              </div>
+              
+              {/* counter */}
+              <div className="flex items-center gap-3 bg-white border border-slate-200 p-1.5 rounded-xl dark:bg-zinc-900 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setMabarQuantity(Math.max(1, mabarQuantity - 1))}
+                  className="w-7 h-7 bg-slate-100 hover:bg-slate-200 flex items-center justify-center font-black rounded-lg active:scale-95 transition-all text-xs dark:bg-zinc-800"
+                >
+                  <Minus className="h-3 w-3" />
+                </button>
+                <span className="text-xs font-black w-6 text-center">{mabarQuantity}</span>
+                <button
+                  type="button"
+                  onClick={() => setMabarQuantity(mabarQuantity + 1)}
+                  className="w-7 h-7 bg-[#FFD551] hover:bg-[#FFC83B] flex items-center justify-center font-black rounded-lg active:scale-95 transition-all text-xs text-black"
+                >
+                  <Plus className="h-3 w-3" />
+                </button>
+              </div>
             </div>
-            
-            {/* Elegant slots counter */}
-            <div className="flex items-center gap-3 bg-white border border-slate-200 p-1.5 rounded-xl dark:bg-zinc-900 dark:border-zinc-800">
-              <button
-                type="button"
-                onClick={() => setMabarQuantity(Math.max(1, mabarQuantity - 1))}
-                className="w-7 h-7 bg-slate-100 hover:bg-slate-200 flex items-center justify-center font-black rounded-lg active:scale-95 transition-all text-xs dark:bg-zinc-800"
-              >
-                <Minus className="h-3 w-3" />
-              </button>
-              <span className="text-xs font-black w-6 text-center">{mabarQuantity}</span>
-              <button
-                type="button"
-                onClick={() => setMabarQuantity(mabarQuantity + 1)}
-                className="w-7 h-7 bg-[#FFD551] hover:bg-[#FFC83B] flex items-center justify-center font-black rounded-lg active:scale-95 transition-all text-xs text-black"
-              >
-                <Plus className="h-3 w-3" />
-              </button>
-            </div>
-          </div>
 
-          {/* Promotion Banner callout */}
-          <div className="space-y-2 pt-2.5 border-t border-slate-200 dark:border-zinc-800">
-            {buyThreshold > 0 && freeBonus > 0 && (
-              <div className={`p-2 rounded-lg flex items-center gap-2 border text-[9px] font-black italic uppercase leading-none ${
-                bonusSlots > 0 
-                  ? "bg-emerald-50 text-emerald-600 border-emerald-200 animate-bounce" 
-                  : "bg-amber-50 text-amber-600 border-amber-200"
-              }`}>
-                <span>🎁</span>
-                <div>
-                  {bonusSlots > 0 ? (
-                    <span>PROMO BONUS AKTIF! +{bonusSlots} GAME GRATIS DIDAPATKAN!</span>
-                  ) : (
-                    <span>PROMO: BELI {buyThreshold} LAYANAN GRATIS {freeBonus}! (KURANG {buyThreshold - mabarQuantity} SLOT LAGI)</span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Bill Info detail */}
-            <div className="space-y-1.5 text-[9.5px] font-bold text-slate-400 dark:text-[#A09E96]">
-              <div className="flex justify-between items-center">
-                <span>Harga Per Slot:</span>
-                <span className="font-mono text-slate-800 dark:text-slate-200">{formatCurrency(selectedPkg.price)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Biaya Utama ({mabarQuantity} Slot):</span>
-                <span className="font-mono text-slate-800 dark:text-slate-200">{formatCurrency(paidTotalVal)}</span>
-              </div>
-              {bonusSlots > 0 && (
-                <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400">
-                  <span>Bonus Free Game:</span>
-                  <span>+{bonusSlots} Sesi Gratis</span>
+            {/* Promotion Banner */}
+            <div className="space-y-2 pt-2.5 border-t border-slate-200 dark:border-zinc-800 text-left">
+              {buyThreshold > 0 && freeBonus > 0 && (
+                <div className={`p-2 rounded-lg flex items-center gap-2 border text-[9px] font-black italic uppercase leading-none ${
+                  bonusSlots > 0 
+                    ? "bg-emerald-50 text-emerald-600 border-emerald-200 animate-bounce" 
+                    : "bg-amber-50 text-amber-600 border-amber-200"
+                }`}>
+                  <Flame className="h-3.5 w-3.5 shrink-0" />
+                  <div>
+                    {bonusSlots > 0 ? (
+                      <span>{isIndo ? `PROMO BONUS AKTIF! +${bonusSlots} GAME GRATIS DIDAPATKAN!` : `PROMO BONUS ACTIVE! +${bonusSlots} FREE GAMES UNLOCKED!`}</span>
+                    ) : (
+                      <span>{isIndo 
+                        ? `PROMO: BELI ${buyThreshold} LAYANAN GRATIS ${freeBonus}! (KURANG ${buyThreshold - mabarQuantity} SLOT LAGI)` 
+                        : `PROMO: BUY ${buyThreshold} GET ${freeBonus} FREE! (${buyThreshold - mabarQuantity} MORE SLOTS NEEDED)`}</span>
+                    )}
+                  </div>
                 </div>
               )}
-              <div className="flex justify-between items-center pt-1.5 border-t border-slate-100 dark:border-zinc-800 text-[10px] font-black text-black dark:text-white italic">
-                <span>Total Antrean Terdaftar:</span>
-                <span className="text-[#FFD551] bg-black px-2.5 py-0.5 rounded-lg border border-slate-800 text-[9px] shrink-0">{totalSlots} Game Slot</span>
+
+              {/* Bill Info */}
+              <div className="space-y-1.5 text-[9.5px] font-bold text-slate-400 dark:text-[#A09E96]">
+                <div className="flex justify-between items-center">
+                  <span>{isIndo ? "Harga Per Slot:" : "Price Per Slot:"}</span>
+                  <span className="font-mono text-slate-800 dark:text-slate-200">{formatCurrency(selectedPkg.price)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>{isIndo ? "Biaya Utama:" : "Main Cost:"} ({mabarQuantity} Slot):</span>
+                  <span className="font-mono text-slate-800 dark:text-slate-200">{formatCurrency(paidTotalVal)}</span>
+                </div>
+                {bonusSlots > 0 && (
+                  <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400">
+                    <span>{isIndo ? "Bonus Free Game:" : "Bonus Free Game:"}</span>
+                    <span>+{bonusSlots} {isIndo ? "Sesi Gratis" : "Free Sessions"}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center pt-1.5 border-t border-slate-100 dark:border-zinc-800 text-[10px] font-black text-black dark:text-white italic">
+                  <span>{isIndo ? "Total Antrean Terdaftar:" : "Total Registered Queue:"}</span>
+                  <span className="text-[#FFD551] bg-black px-2.5 py-0.5 rounded-lg border border-slate-800 text-[9px] shrink-0">{totalSlots} {isIndo ? "Game Slot" : "Game Slots"}</span>
+                </div>
+                {selectedPayment && mabarFee > 0 && (
+                  <>
+                    <div className="flex justify-between items-center text-[9.5px] font-bold text-slate-400 dark:text-[#A09E96]">
+                      <span>{isIndo ? "Biaya" : "Fee"} {selectedPayment.name} ({selectedPayment.fee}):</span>
+                      <span className="font-mono text-slate-800 dark:text-slate-200">Rp {mabarFee.toLocaleString("id-ID")}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-1.5 border-t border-slate-100 dark:border-zinc-800 text-[10px] font-black text-black dark:text-white italic">
+                      <span>{isIndo ? "Total Bayar:" : "Total Payment:"}</span>
+                      <span className="font-mono text-[#FFD551]">Rp {mabarTotalWithFee.toLocaleString("id-ID")}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl dark:bg-zinc-900 dark:border-zinc-800 space-y-3.5 shadow-sm text-left">
+            {/* Bill Info for project */}
+            <div className="space-y-1.5 text-[9.5px] font-bold text-slate-400 dark:text-[#A09E96]">
+              <div className="flex justify-between items-center">
+                <span>{isIndo ? "Dukungan Karya:" : "Creation Support:"}</span>
+                <span className="font-mono text-slate-800 dark:text-slate-200">{formatCurrency(selectedPkg.price)}</span>
               </div>
               {selectedPayment && mabarFee > 0 && (
                 <>
                   <div className="flex justify-between items-center text-[9.5px] font-bold text-slate-400 dark:text-[#A09E96]">
-                    <span>Biaya {selectedPayment.name} ({selectedPayment.fee}):</span>
+                    <span>{isIndo ? "Biaya" : "Fee"} {selectedPayment.name} ({selectedPayment.fee}):</span>
                     <span className="font-mono text-slate-800 dark:text-slate-200">Rp {mabarFee.toLocaleString("id-ID")}</span>
                   </div>
                   <div className="flex justify-between items-center pt-1.5 border-t border-slate-100 dark:border-zinc-800 text-[10px] font-black text-black dark:text-white italic">
-                    <span>Total Bayar:</span>
+                    <span>{isIndo ? "Total Bayar:" : "Total Payment:"}</span>
                     <span className="font-mono text-[#FFD551]">Rp {mabarTotalWithFee.toLocaleString("id-ID")}</span>
                   </div>
                 </>
               )}
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Credentials nickname IGN and Game ID */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="mabarIgn" className="text-[9.5px] font-black uppercase tracking-widest italic text-slate-500 dark:text-[#A09E96]">
-              Nickname Game (IGN)
-            </Label>
-            <Input 
-              id="mabarIgn"
-              type="text" 
-              required
-              value={mabarIgn}
-              onChange={(e) => setMabarIgn(e.target.value)}
-              placeholder="Contoh: Faker#ID" 
-              className="h-10 rounded-xl border border-slate-200 dark:border-zinc-800 dark:bg-zinc-900 font-bold text-xs"
-            />
+        {/* Credentials nickname IGN and Game ID / Email & Name */}
+        {!isProject ? (
+          <div className="grid grid-cols-2 gap-3 text-left">
+            <div className="space-y-1.5">
+              <Label htmlFor="mabarIgn" className="text-[9.5px] font-black uppercase tracking-widest italic text-slate-700 dark:text-[#C8C6BC]">
+                {isIndo ? "Nickname Game (IGN)" : "Game Nickname (IGN)"}
+              </Label>
+              <Input 
+                id="mabarIgn"
+                type="text" 
+                required
+                value={mabarIgn}
+                onChange={(e) => setMabarIgn(e.target.value)}
+                placeholder="Contoh: Faker#ID" 
+                className="h-12 rounded-xl border-2 border-zinc-950 dark:border-zinc-800 dark:bg-zinc-900 font-extrabold text-xs shadow-sm focus-visible:ring-0 focus-visible:border-[#FFD551]"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="mabarId" className="text-[9.5px] font-black uppercase tracking-widest italic text-slate-700 dark:text-[#C8C6BC]">
+                {isIndo ? "ID Game / Server" : "Game ID / Server"}
+              </Label>
+              <Input 
+                id="mabarId"
+                type="text" 
+                required
+                value={mabarId}
+                onChange={(e) => setMabarId(e.target.value)}
+                placeholder="Contoh: 1234567 (8910)" 
+                className="h-12 rounded-xl border-2 border-zinc-950 dark:border-zinc-800 dark:bg-zinc-900 font-extrabold text-xs shadow-sm focus-visible:ring-0 focus-visible:border-[#FFD551]"
+              />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="mabarId" className="text-[9.5px] font-black uppercase tracking-widest italic text-slate-500 dark:text-[#A09E96]">
-              ID Game / Server
-            </Label>
-            <Input 
-              id="mabarId"
-              type="text" 
-              required
-              value={mabarId}
-              onChange={(e) => setMabarId(e.target.value)}
-              placeholder="Contoh: 1234567 (8910)" 
-              className="h-10 rounded-xl border border-slate-200 dark:border-zinc-800 dark:bg-zinc-900 font-bold text-xs"
-            />
+        ) : (
+          <div className="grid grid-cols-2 gap-3 text-left">
+            <div className="space-y-1.5">
+              <Label htmlFor="projectName" className="text-[9.5px] font-black uppercase tracking-widest italic text-slate-700 dark:text-[#C8C6BC]">
+                {isIndo ? "Nama Pengirim (Opsional)" : "Sender Name (Optional)"}
+              </Label>
+              <Input 
+                id="projectName"
+                type="text" 
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                placeholder={isIndo ? "Contoh: Hamba Allah" : "e.g. Anonymous"} 
+                className="h-12 rounded-xl border-2 border-zinc-950 dark:border-zinc-800 dark:bg-zinc-900 font-extrabold text-xs shadow-sm focus-visible:ring-0 focus-visible:border-[#FFD551]"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="projectEmail" className="text-[9.5px] font-black uppercase tracking-widest italic text-slate-700 dark:text-[#C8C6BC]">
+                {isIndo ? "Email Checkout (Wajib)" : "Checkout Email (Required)"}
+              </Label>
+              <Input 
+                id="projectEmail"
+                type="email" 
+                required
+                value={projectEmail}
+                onChange={(e) => setProjectEmail(e.target.value)}
+                placeholder="email@anda.com" 
+                className="h-12 rounded-xl border-2 border-zinc-950 dark:border-zinc-800 dark:bg-zinc-900 font-extrabold text-xs shadow-sm focus-visible:ring-0 focus-visible:border-[#FFD551]"
+              />
+            </div>
+            <div className="col-span-2">
+              <p className="text-[9.5px] font-bold text-slate-600 italic">
+                {isIndo 
+                  ? "Penting! Gunakan email ini saat memverifikasi akses unduh file setelah pembayaran berhasil."
+                  : "Important! Use this email to verify your download link access after successful payment."}
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Payment Selector block */}
-        <div className="space-y-2">
-          <Label className="text-[10px] font-black uppercase tracking-widest italic text-slate-500 dark:text-[#A09E96]">
-            Metode Pembayaran
+        <div className="space-y-2 text-left">
+          <Label className="text-[10px] font-black uppercase tracking-widest italic text-slate-700 dark:text-[#C8C6BC]">
+            {isIndo ? "Metode Pembayaran" : "Payment Method"}
           </Label>
           
           {!showPaymentSelection && selectedPayment ? (
@@ -358,7 +472,7 @@ export function MabarTab({
                 onClick={() => setShowPaymentSelection(true)}
                 className="text-[10px] font-black uppercase italic bg-[#FFD551] text-black px-3 py-1.5 rounded-xl border border-black shadow-[1px_1px_0px_0px_#000] active:scale-95 transition-transform"
               >
-                Ubah 💳
+                {isIndo ? "Ubah" : "Change"}
               </button>
             </div>
           ) : showPaymentSelection && paymentMethods.length > 0 ? (
@@ -382,23 +496,23 @@ export function MabarTab({
             </div>
           ) : (
             <div className="p-3 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center py-4 dark:bg-zinc-900 dark:border-zinc-800">
-              <p className="text-[10px] font-bold text-slate-400 italic">Belum ada metode pembayaran tersedia.</p>
+              <p className="text-[10px] font-bold text-slate-400 italic">{isIndo ? "Belum ada metode pembayaran tersedia." : "No payment methods available."}</p>
             </div>
           )}
         </div>
 
         {/* Optional Request message */}
-        <div className="space-y-1.5">
-          <Label htmlFor="mabarMessage" className="text-[9.5px] font-black uppercase tracking-widest italic text-slate-500 dark:text-[#A09E96]">
-            Catatan / Request (Opsional)
+        <div className="space-y-1.5 text-left">
+          <Label htmlFor="mabarMessage" className="text-[9.5px] font-black uppercase tracking-widest italic text-slate-700 dark:text-[#C8C6BC]">
+            {isProject ? (isIndo ? "Pesan Dukungan (Opsional)" : "Support Message (Optional)") : (isIndo ? "Catatan / Request (Opsional)" : "Notes / Requests (Optional)")}
           </Label>
           <textarea 
             id="mabarMessage"
             rows={2}
-            value={mabarMessage}
-            onChange={(e) => setMabarMessage(e.target.value)}
-            placeholder="Contoh: Request mabar ranked MLBB, saya user Core..." 
-            className="w-full p-3 rounded-xl border border-slate-200 font-semibold text-xs outline-none focus:border-[#FFD551] dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-300"
+            value={isProject ? projectMessage : mabarMessage}
+            onChange={(e) => isProject ? setProjectMessage(e.target.value) : setMabarMessage(e.target.value)}
+            placeholder={isProject ? (isIndo ? "Contoh: Terima kasih atas karyanya, sangat bermanfaat!" : "e.g. Thanks for the creation, very useful!") : (isIndo ? "Contoh: Request mabar ranked MLBB, saya user Core..." : "Example: Request MLBB ranked mabar, I am a Core user...")} 
+            className="w-full p-3 rounded-xl border-2 border-zinc-950 font-semibold text-xs outline-none focus:border-[#FFD551] focus:ring-0 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-300 shadow-sm"
           />
         </div>
 
@@ -406,7 +520,7 @@ export function MabarTab({
         <div className="pt-4 border-t border-slate-100 dark:border-zinc-800 space-y-4">
           {/* Checkbox Konfirmasi Syarat & Ketentuan */}
           <div className="p-3 bg-amber-500/5 border border-[#FFD551]/20 rounded-2xl">
-            <label className="flex items-start gap-3 text-xs font-semibold text-slate-600 dark:text-[#A09E96] cursor-pointer select-none leading-relaxed text-left">
+            <label className="flex items-start gap-3 text-xs font-semibold text-slate-800 dark:text-[#D4D2C9] cursor-pointer select-none leading-relaxed text-left">
               <input 
                 type="checkbox" 
                 required
@@ -414,9 +528,15 @@ export function MabarTab({
                 onChange={(e) => setIsTermsConfirmed(e.target.checked)}
                 className="h-4.5 w-4.5 rounded border-slate-300 dark:border-zinc-700 text-[#FFD551] focus:ring-[#FFD551] mt-0.5 cursor-pointer"
               />
-              <span>
-                Saya menyetujui <button type="button" onClick={() => setIsTermsModalOpen(true)} className="text-amber-500 font-black italic underline hover:text-amber-600 transition-colors">Syarat & Ketentuan Layanan</button>. Saya menyatakan pesanan slot mabar ini dilakukan secara **sukarela**, non-refundable, dan mengikuti ketentuan escrow Treetmi.
-              </span>
+              {isIndo ? (
+                <span>
+                  Saya menyetujui <button type="button" onClick={() => setIsTermsModalOpen(true)} className="text-amber-500 font-black italic underline hover:text-amber-600 transition-colors">Syarat & Ketentuan Layanan</button>. Saya menyatakan pembayaran {isProject ? "karya digital" : "slot mabar"} ini dilakukan secara **sukarela**, non-refundable, dan mengikuti ketentuan escrow Treetmi.
+                </span>
+              ) : (
+                <span>
+                  I agree to the <button type="button" onClick={() => setIsTermsModalOpen(true)} className="text-amber-500 font-black italic underline hover:text-amber-600 transition-colors">Terms & Conditions of Service</button>. I declare this {isProject ? "digital creation" : "mabar slot"} order is made **voluntarily**, non-refundable, and follows Treetmi escrow terms.
+                </span>
+              )}
             </label>
           </div>
 
@@ -429,12 +549,16 @@ export function MabarTab({
                 : "bg-slate-200 border-slate-300 cursor-not-allowed hover:bg-slate-200 dark:bg-zinc-800 dark:text-zinc-500 dark:border-zinc-700"
             }`}
           >
-            {isSubmitting ? "Memproses antrean..." : `PESAN SLOT MABAR Rp ${mabarTotalWithFee.toLocaleString("id-ID")}`}
-            <Gamepad2 className="ml-2 h-4 w-4" />
+            {isSubmitting 
+              ? (isIndo ? (isProject ? "Memproses dukungan..." : "Memproses antrean...") : (isProject ? "Processing support..." : "Processing queue...")) 
+              : (isIndo 
+                  ? (isProject ? `DUKUNG KARYA Rp ${mabarTotalWithFee.toLocaleString("id-ID")}` : `PESAN SLOT MABAR Rp ${mabarTotalWithFee.toLocaleString("id-ID")}`) 
+                  : (isProject ? `SUPPORT CREATION Rp ${mabarTotalWithFee.toLocaleString("id-ID")}` : `ORDER MABAR SLOT Rp ${mabarTotalWithFee.toLocaleString("id-ID")}`)) }
+            {isProject ? <Download className="ml-2 h-4 w-4" /> : <Gamepad2 className="ml-2 h-4 w-4" />}
           </Button>
           
           <div className="mt-2 text-center flex items-center justify-center gap-1 text-[9px] font-extrabold text-slate-400 uppercase italic">
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-500 fill-current" /> Order diproses FIFO oleh Treetmi Engine
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-500 fill-current" /> {isIndo ? "Order diproses FIFO oleh Treetmi Engine" : "Orders processed FIFO by Treetmi Engine"}
           </div>
         </div>
 
@@ -443,7 +567,7 @@ export function MabarTab({
     )
   }
 
-  // Otherwise, render catalog catalog
+  // Otherwise, render catalog
   return (
     <div className="space-y-6">
       
@@ -455,78 +579,79 @@ export function MabarTab({
               <div 
                 key={pkg.id}
                 onClick={() => {
-                  if (pkg.type === "PROJECT") {
-                    // For direct asset unlock clicks, trigger purchase alert / scroll
-                    toast.info(`Untuk membuka "${pkg.gameName}", lakukan dukungan minimal sebesar ${formatCurrency(pkg.price)} lalu buka via form verifikasi email di bawah.`)
-                  } else {
-                    if (pkg.status !== "ACTIVE") {
-                      toast.error("Kreator sedang tidak ON (tidak Live stream) untuk game ini.")
-                      return
-                    }
-                    setSelectedPkg(pkg)
+                  if (pkg.type === "MABAR" && pkg.status !== "ACTIVE") {
+                    toast.error(isIndo ? "Kreator sedang tidak ON (tidak Live stream) untuk game ini." : "Creator is not live streaming for this game right now.")
+                    return
                   }
+                  setSelectedPkg(pkg)
                 }}
-                className={`relative bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-4 cursor-pointer hover:border-black active:scale-[0.99] transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-sm dark:bg-[#1E1E1E] dark:border-zinc-800/80 dark:hover:border-[#FFD551] ${
+                className={`relative bg-white dark:bg-zinc-900/60 border border-slate-100 dark:border-zinc-800 rounded-3xl p-4 sm:p-4.5 cursor-pointer hover:border-amber-400 dark:hover:border-amber-500/80 hover:shadow-lg hover:shadow-slate-100/50 dark:hover:shadow-none transition-all duration-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm ${
                   pkg.type === "MABAR" && pkg.status !== "ACTIVE"
-                    ? "opacity-65 grayscale-[35%] cursor-not-allowed hover:border-slate-200"
+                    ? "opacity-60 grayscale-[35%] cursor-not-allowed hover:border-slate-100 hover:shadow-sm"
                     : ""
                 }`}
               >
-                {/* Popular Badge float */}
+                {/* Popular Badge */}
                 {pkg.isPopular && pkg.status === "ACTIVE" && (
-                  <span className="absolute -top-1.5 left-4 bg-[#FFD551] text-black font-extrabold rounded-full text-[9px] uppercase tracking-widest px-2.5 py-0.5 border border-black shadow-sm leading-none z-10">
-                    POPULER
+                  <span className="absolute -top-2.5 left-5 bg-amber-500/10 dark:bg-[#FFD551]/10 text-amber-600 dark:text-[#FFD551] font-extrabold rounded-full text-[8.5px] uppercase tracking-wider px-2.5 py-0.5 border border-amber-500/20 dark:border-[#FFD551]/20 leading-none z-10 flex items-center gap-1">
+                    <Sparkles className="h-3 w-3 text-amber-500 dark:text-[#FFD551] fill-current animate-pulse" />
+                    {isIndo ? "POPULER" : "POPULAR"}
                   </span>
                 )}
 
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-3.5 min-w-0 text-left">
                   {pkg.image && (pkg.image.startsWith("http") || pkg.image.startsWith("/")) ? (
                     <img 
                       src={pkg.image} 
                       alt={pkg.gameName} 
-                      className="h-14 w-14 rounded-2xl object-cover border border-slate-200/50 dark:border-zinc-800/80 shadow-sm shrink-0"
+                      className="h-14 w-14 rounded-2xl object-cover border border-slate-100 dark:border-zinc-800 shadow-sm shrink-0"
                     />
                   ) : (
-                    <span className="text-3xl shrink-0">{pkg.image || "🎮"}</span>
+                    <span className="text-3xl shrink-0 p-2 bg-[#FFD551]/5 rounded-2xl border border-dashed border-[#FFD551]/20 flex items-center justify-center h-14 w-14">
+                      {pkg.image || <Gamepad2 className="h-6.5 w-6.5 text-[#FFD551]" />}
+                    </span>
                   )}
                   <div className="space-y-1 min-w-0">
-                    <h4 className="text-xs sm:text-sm font-black uppercase leading-tight text-slate-800 dark:text-[#EAE9E4] truncate">
+                    <h4 className="text-sm font-black uppercase leading-tight text-slate-800 dark:text-[#EAE9E4] truncate">
                       {pkg.gameName}
                     </h4>
-                    <p className="text-[9px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wide leading-none truncate">
-                      {pkg.packageName}
+                    <p className="text-[9.5px] font-black text-slate-700 dark:text-[#C8C6BC] uppercase tracking-widest leading-none truncate italic flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 dark:bg-[#FFD551]" /> {pkg.packageName}
                     </p>
                     
                     {/* Promo badge */}
                     {pkg.type === "MABAR" && creatorDbData?.mabar_promo_buy > 0 && pkg.status === "ACTIVE" && (
                       <div className="pt-0.5">
-                        <span className="inline-block bg-emerald-500 text-white font-extrabold rounded-lg text-[8px] uppercase tracking-wider px-2 py-0.5 shadow-sm leading-none shrink-0">
-                          🔥 MABAR {creatorDbData.mabar_promo_buy} FREE {creatorDbData.mabar_promo_get}
+                        <span className="inline-flex bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-extrabold rounded-lg text-[8.5px] uppercase tracking-wider px-2 py-0.5 shadow-sm leading-none shrink-0 items-center gap-1">
+                          <Flame className="h-3 w-3 text-emerald-500 animate-bounce" />
+                          {isIndo 
+                            ? `MABAR ${creatorDbData.mabar_promo_buy} GRATIS ${creatorDbData.mabar_promo_get}` 
+                            : `BUY ${creatorDbData.mabar_promo_buy} GET ${creatorDbData.mabar_promo_get} FREE`}
                         </span>
                       </div>
                     )}
                   </div>
                 </div>
                 
-                {/* Right side Price Tag / Action */}
-                <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 sm:pl-2 w-full sm:w-auto border-t sm:border-t-0 border-slate-100 dark:border-zinc-800 pt-2 sm:pt-0">
+                {/* Right side Price Tag */}
+                <div className="flex items-center justify-between sm:justify-end gap-3.5 shrink-0 sm:pl-2 w-full sm:w-auto border-t sm:border-t-0 border-slate-50 dark:border-zinc-800/80 pt-2.5 sm:pt-0">
                   <div className="flex flex-col text-left sm:text-right">
                     {pkg.originalPrice && (
-                      <span className="text-[9px] line-through text-slate-400 dark:text-zinc-500 leading-none">
+                      <span className="text-[10px] line-through text-slate-600 dark:text-zinc-500 font-bold leading-none">
                         {formatCurrency(pkg.originalPrice)}
                       </span>
                     )}
-                    <span className="text-xs sm:text-sm font-black text-red-500 italic dark:text-red-400 leading-tight">
+                    <span className="text-sm font-black text-rose-600 dark:text-rose-400 italic leading-tight">
                       {formatCurrency(pkg.price)}
                     </span>
                   </div>
                   {pkg.type === "MABAR" && pkg.status !== "ACTIVE" ? (
-                    <span className="text-[8px] font-black uppercase italic bg-slate-100 text-slate-400 px-2 py-1 rounded-lg border shrink-0">
-                      Offline 💤
+                    <span className="text-[9px] font-black uppercase italic bg-slate-100 text-slate-400 px-3 py-1.5 rounded-xl border border-slate-200 shrink-0 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-500">
+                      Offline
                     </span>
                   ) : (
-                    <span className="text-[9px] font-black uppercase italic bg-[#FFD551] text-black px-2.5 py-1.5 rounded-xl border border-black shadow-[1.5px_1.5px_0_0_#000] hover:bg-[#FFC83B] shrink-0">
-                      {pkg.type === "PROJECT" ? "Karya 📚" : "Order ⚡"}
+                    <span className="h-9 px-4 bg-[#FFD551] hover:bg-[#FFC83B] text-black rounded-xl font-black uppercase italic text-[10px] tracking-wider transition-all shadow-sm hover:shadow active:scale-95 flex items-center justify-center shrink-0">
+                      {pkg.type === "PROJECT" ? (isIndo ? "Karya" : "Creation") : "Order"}
                     </span>
                   )}
                 </div>
@@ -536,26 +661,34 @@ export function MabarTab({
         </div>
       ) : (
         <div className="p-6 bg-slate-50 border border-dashed rounded-xl text-center space-y-1.5 dark:bg-zinc-950/20 dark:border-zinc-800">
-          <p className="text-xs font-black italic text-slate-400 uppercase tracking-widest">Katalog Layanan Kosong</p>
-          <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">Belum ada mabar game atau karya digital yang dikonfigurasikan.</p>
+          <p className="text-xs font-black italic text-slate-400 uppercase tracking-widest">
+            {isIndo 
+              ? (mode === "KARYA" ? "Katalog Karya Kosong" : "Katalog Layanan Kosong") 
+              : (mode === "KARYA" ? "Creations Catalog Empty" : "Services Catalog Empty")}
+          </p>
+          <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
+            {isIndo 
+              ? (mode === "KARYA" ? "Belum ada karya digital yang dikonfigurasikan." : "Belum ada mabar game yang dikonfigurasikan.") 
+              : (mode === "KARYA" ? "No digital creations configured yet." : "No mabar games configured yet.")}
+          </p>
         </div>
       )}
 
       {/* 2. Unified Digital Asset File Unlocker */}
-      {creatorDbData?.project_assets && creatorDbData.project_assets.length > 0 && (
+      {mode === "KARYA" && creatorDbData?.project_assets && creatorDbData.project_assets.length > 0 && (
         <div className="p-4 bg-slate-50/50 border border-slate-100 rounded-3xl space-y-4 dark:bg-zinc-950/20 dark:border-zinc-800">
-          <div className="flex flex-col gap-0.5 pb-2 border-b border-slate-200/50 dark:border-zinc-800">
+          <div className="flex flex-col gap-0.5 pb-2 border-b border-slate-200/50 dark:border-zinc-800 text-left">
             <span className="text-xs font-black uppercase italic tracking-widest flex items-center gap-1.5 text-slate-800 dark:text-[#EAE9E4]">
-              <Unlock className="h-4 w-4 text-[#FFD551]" /> Akses File Karya Digital Anda
+              <Unlock className="h-4 w-4 text-[#FFD551]" /> {isIndo ? "Akses File Karya Digital Anda" : "Access Your Digital Creation Files"}
             </span>
-            <span className="text-[9.5px] font-bold text-slate-400 dark:text-zinc-500 italic">
-              Masukkan email checkout Anda untuk mengunduh karya digital yang telah dibeli
+            <span className="text-[9.5px] font-bold text-slate-600 dark:text-zinc-400 italic">
+              {isIndo ? "Masukkan email checkout Anda untuk mengunduh karya digital yang didukung" : "Enter your checkout email to download supported digital creations"}
             </span>
           </div>
 
           <form onSubmit={handleUnlockAccess} className="space-y-3">
             <div className="flex gap-2">
-              <div className="relative flex-1">
+              <div className="relative flex-1 text-left">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
                   type="email"
@@ -574,7 +707,7 @@ export function MabarTab({
                 {isCheckingAccess ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  "Verifikasi"
+                  (isIndo ? "Verifikasi" : "Verify")
                 )}
               </Button>
             </div>
@@ -584,7 +717,7 @@ export function MabarTab({
           {hasCheckedAccess && (
             <div className="space-y-2.5 animate-fadeIn">
               <div className="p-3 bg-white border border-slate-200 rounded-xl flex justify-between items-center dark:bg-zinc-900 dark:border-zinc-800">
-                <span className="text-[9px] font-black uppercase italic text-slate-400">Total Pembelian Terdeteksi</span>
+                <span className="text-[9px] font-black uppercase italic text-slate-600">{isIndo ? "Total Dukungan Terdeteksi" : "Total Support Detected"}</span>
                 <span className="text-xs font-black italic text-[#FFD551] bg-black px-2.5 py-0.5 rounded-lg border border-zinc-800">
                   {formatCurrency(convertFromIdr(totalSupported))}
                 </span>
@@ -599,12 +732,18 @@ export function MabarTab({
                       : "bg-white border-slate-200 dark:bg-zinc-900 dark:border-zinc-800"
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="text-lg shrink-0">{project.unlocked ? "🔓" : "🔒"}</span>
+                  <div className="flex items-center gap-2.5 min-w-0 text-left">
+                    <span className="text-lg shrink-0">
+                      {project.unlocked ? (
+                        <Unlock className="h-4 w-4 text-emerald-500" />
+                      ) : (
+                        <Lock className="h-4 w-4 text-slate-400" />
+                      )}
+                    </span>
                     <div className="min-w-0 space-y-0.5">
                       <h4 className="text-[10px] font-black uppercase leading-tight truncate text-slate-800 dark:text-zinc-350">{project.title}</h4>
                       <span className="text-[8px] font-extrabold text-slate-400 block leading-none">
-                        Min. Dukungan: {formatCurrency(convertFromIdr(project.min_support))}
+                        {isIndo ? "Min. Dukungan:" : "Min. Support:"} {formatCurrency(convertFromIdr(project.min_support))}
                       </span>
                     </div>
                   </div>
@@ -615,18 +754,18 @@ export function MabarTab({
                       rel="noopener noreferrer"
                       className="text-[9px] font-black uppercase italic bg-emerald-500 text-white px-3 py-1.5 rounded-lg border border-emerald-600 hover:bg-emerald-600 transition-all shrink-0 flex items-center gap-1 shadow-sm"
                     >
-                      <Download className="h-3.5 w-3.5 shrink-0" /> Unduh
+                      <Download className="h-3.5 w-3.5 shrink-0" /> {isIndo ? "Unduh" : "Download"}
                     </a>
                   ) : (
                     <span className="text-[8px] font-black uppercase italic text-slate-400 shrink-0">
-                      Terkunci 🔒
+                      {isIndo ? "Terkunci" : "Locked"}
                     </span>
                   )}
                 </div>
               ))}
 
               {unlockedProjects.length === 0 && (
-                <p className="text-[9.5px] text-center text-slate-400 italic py-2">Belum ada karya digital terdaftar.</p>
+                <p className="text-[9.5px] text-center text-slate-400 italic py-2">{isIndo ? "Belum ada karya digital terdaftar." : "No digital creations registered yet."}</p>
               )}
             </div>
           )}

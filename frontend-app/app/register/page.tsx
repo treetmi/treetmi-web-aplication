@@ -14,9 +14,13 @@ import { Rocket, Mail, User, Loader2, ArrowRight, ShieldCheck, Timer } from "luc
 import { toast } from "sonner"
 import { motion, AnimatePresence } from "framer-motion"
 import Link from "next/link"
+import { useLanguage } from "@/components/language-provider"
 
 export default function RegisterPage() {
   const router = useRouter()
+  const { lang } = useLanguage()
+  const isIndo = lang === "id"
+
   const [step, setStep] = useState(1) // 1: Registration Form, 2: OTP Entry
   const [username, setUsername] = useState("")
   const [mounted, setMounted] = useState(false)
@@ -53,13 +57,13 @@ export default function RegisterPage() {
     e.preventDefault()
     setError(null)
     if (!username || !email) {
-      setError("Semua field wajib diisi!")
+      setError(isIndo ? "Semua field wajib diisi!" : "All fields are required!")
       return
     }
 
     const cleanUsername = username.trim().replace("@", "").toLowerCase()
     if (cleanUsername.length < 3) {
-      setError("Username harus memiliki minimal 3 karakter!")
+      setError(isIndo ? "Username harus memiliki minimal 3 karakter!" : "Username must have at least 3 characters!")
       return
     }
 
@@ -77,15 +81,15 @@ export default function RegisterPage() {
 
       const json = await res.json()
       if (json.success) {
-        toast.success(json.message || "Kode OTP berhasil dikirim!")
+        toast.success(isIndo ? (json.message || "Kode OTP berhasil dikirim!") : "OTP code sent successfully!")
         setStep(2)
         setTimer(900) // reset timer
       } else {
-        setError(json.message || "Gagal melakukan registrasi.")
+        setError(json.message || (isIndo ? "Gagal melakukan registrasi." : "Failed to register."))
       }
     } catch (err: any) {
       console.error(err)
-      setError("Gagal terhubung ke server API backend.")
+      setError(isIndo ? "Gagal terhubung ke server API backend." : "Failed to connect to backend API server.")
     } finally {
       setIsLoading(false)
     }
@@ -117,7 +121,7 @@ export default function RegisterPage() {
     setError(null)
     const otpCode = otp.join("")
     if (otpCode.length < 6) {
-      setError("Masukkan 6-digit kode OTP lengkap!")
+      setError(isIndo ? "Masukkan 6-digit kode OTP lengkap!" : "Please enter the complete 6-digit OTP code!")
       return
     }
 
@@ -148,15 +152,15 @@ export default function RegisterPage() {
         if (result?.error) {
           setError(result.error)
         } else {
-          toast.success("Verifikasi berhasil! Selamat datang di Treetmi Hub.")
+          toast.success(isIndo ? "Verifikasi berhasil! Selamat datang di Treetmi Hub." : "Verification successful! Welcome to Treetmi Hub.")
           router.push("/dashboard")
         }
       } else {
-        setError(json.message || "Kode OTP salah atau telah kedaluwarsa.")
+        setError(json.message || (isIndo ? "Kode OTP salah atau telah kedaluwarsa." : "OTP code is incorrect or has expired."))
       }
     } catch (err) {
       console.error(err)
-      setError("Gagal memverifikasi kode OTP.")
+      setError(isIndo ? "Gagal memverifikasi kode OTP." : "Failed to verify OTP code.")
     } finally {
       setIsLoading(false)
     }
@@ -167,7 +171,7 @@ export default function RegisterPage() {
     try {
       await signIn("google", { callbackUrl: "/dashboard" })
     } catch (err) {
-      toast.error("Gagal memulai login dengan Google.")
+      toast.error(isIndo ? "Gagal memulai login dengan Google." : "Failed to start Google sign-in.")
     } finally {
       setIsGoogleLoading(false)
     }
@@ -190,12 +194,12 @@ export default function RegisterPage() {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="-mb-12 relative z-30 flex justify-center w-full pointer-events-none"
+          className="-mb-[320px] md:-mb-[390px] relative z-30 flex justify-center w-full pointer-events-none"
         >
           <img 
-            src="/auth/auth_image.webp" 
+            src="/auth/auth_top_image.webp" 
             alt="Welcome to Treetmi" 
-            className="w-full max-w-[280px] md:max-w-[340px] h-auto object-contain drop-shadow-2xl"
+            className="w-[640px] max-w-[640px] md:w-[770px] md:max-w-[770px] h-auto object-contain"
           />
         </motion.div>
 
@@ -216,10 +220,10 @@ export default function RegisterPage() {
                       <Rocket className="text-black h-8 w-8" />
                     </div>
                     <CardTitle className="text-4xl font-black italic tracking-tighter text-black dark:text-white">
-                      Daftar Kreator
+                      {isIndo ? "Daftar Kreator" : "Creator Registration"}
                     </CardTitle>
                     <CardDescription className="font-bold italic text-xs tracking-wider text-slate-500 dark:text-zinc-400">
-                      Mulai Perjalanan Kreatifmu Hari Ini
+                      {isIndo ? "Mulai Perjalanan Kreatifmu Hari Ini" : "Start Your Creative Journey Today"}
                     </CardDescription>
                   </CardHeader>
                   
@@ -233,14 +237,14 @@ export default function RegisterPage() {
                       )}
                       <div className="space-y-2">
                         <Label htmlFor="username" className="text-xs font-black italic text-slate-500 dark:text-zinc-400">
-                          Username Pilihan
+                          {isIndo ? "Username Pilihan" : "Preferred Username"}
                         </Label>
                         <div className="relative">
                           <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                           <Input
                             id="username"
                             type="text"
-                            placeholder="contoh: budigamer"
+                            placeholder={isIndo ? "contoh: budigamer" : "e.g., budigamer"}
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             className="pl-10 h-12 border border-slate-200 rounded-2xl bg-[#FAF9F6] text-black font-bold outline-none focus:ring-2 focus:ring-[#FFD551] dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-white"
@@ -252,14 +256,14 @@ export default function RegisterPage() {
 
                       <div className="space-y-2">
                         <Label htmlFor="email" className="text-xs font-black italic text-slate-500 dark:text-zinc-400">
-                          Alamat Email Aktif
+                          {isIndo ? "Alamat Email Aktif" : "Active Email Address"}
                         </Label>
                         <div className="relative">
                           <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                           <Input
                             id="email"
                             type="email"
-                            placeholder="contoh: budi@gmail.com"
+                            placeholder={isIndo ? "contoh: budi@gmail.com" : "e.g., budi@gmail.com"}
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             className="pl-10 h-12 border border-slate-200 rounded-2xl bg-[#FAF9F6] text-black font-bold outline-none focus:ring-2 focus:ring-[#FFD551] dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-white"
@@ -278,7 +282,7 @@ export default function RegisterPage() {
                           <Loader2 className="h-5 w-5 animate-spin" />
                         ) : (
                           <>
-                            Bergabung Sekarang <ArrowRight className="h-4 w-4" />
+                            {isIndo ? "Bergabung Sekarang" : "Join Now"} <ArrowRight className="h-4 w-4" />
                           </>
                         )}
                       </Button>
@@ -287,7 +291,7 @@ export default function RegisterPage() {
                     <div className="relative flex items-center justify-center my-2">
                       <span className="absolute w-full h-[1px] bg-slate-200 dark:bg-zinc-800" />
                       <span className="relative px-3 text-[10px] font-black italic bg-white dark:bg-[#121211] text-slate-400">
-                        atau
+                        {isIndo ? "atau" : "or"}
                       </span>
                     </div>
 
@@ -301,15 +305,15 @@ export default function RegisterPage() {
                       ) : (
                         <>
                           <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4" />
-                          Hubungkan dengan Google
+                          {isIndo ? "Hubungkan dengan Google" : "Sign in with Google"}
                         </>
                       )}
                     </Button>
 
                     <p className="text-center text-xs font-bold text-slate-500 dark:text-zinc-400 mt-4">
-                      Sudah punya akun?{" "}
+                      {isIndo ? "Sudah punya akun?" : "Already have an account?"}{" "}
                       <Link href="/login" className="text-black dark:text-[#FFD551] font-black underline italic">
-                        Masuk Hub
+                        {isIndo ? "Masuk Hub" : "Login Hub"}
                       </Link>
                     </p>
                   </CardContent>
@@ -329,10 +333,10 @@ export default function RegisterPage() {
                       <ShieldCheck className="text-black h-8 w-8" />
                     </div>
                     <CardTitle className="text-4xl font-black italic tracking-tighter text-black dark:text-white">
-                      Verifikasi OTP
+                      {isIndo ? "Verifikasi OTP" : "OTP Verification"}
                     </CardTitle>
                     <CardDescription className="font-bold text-[10px] tracking-wider text-slate-500 dark:text-zinc-400">
-                      Masukkan 6 digit kode yang dikirim ke <br />
+                      {isIndo ? "Masukkan 6 digit kode yang dikirim ke" : "Enter the 6-digit code sent to"}<br />
                       <span className="text-black dark:text-white lowercase italic font-black">{email}</span>
                     </CardDescription>
                   </CardHeader>
@@ -362,7 +366,7 @@ export default function RegisterPage() {
 
                       <div className="flex items-center justify-center gap-2 text-xs font-bold text-slate-500 dark:text-zinc-400">
                         <Timer className="h-4 w-4" />
-                        Masa berlaku kode:{" "}
+                        {isIndo ? "Masa berlaku kode:" : "Code expires in:"}{" "}
                         <span className="font-black text-black dark:text-white">
                           {formatTime(timer)}
                         </span>
@@ -377,20 +381,20 @@ export default function RegisterPage() {
                           <Loader2 className="h-5 w-5 animate-spin" />
                         ) : (
                           <>
-                            Verifikasi & Gabung <ArrowRight className="h-4 w-4" />
+                            {isIndo ? "Verifikasi & Gabung" : "Verify & Join"} <ArrowRight className="h-4 w-4" />
                           </>
                         )}
                       </Button>
                     </form>
 
                     <p className="text-center text-xs font-bold text-slate-500 dark:text-zinc-400">
-                      Tidak menerima kode?{" "}
+                      {isIndo ? "Tidak menerima kode?" : "Didn't receive the code?"}{" "}
                       <button
                         type="button"
                         onClick={handleRegisterSubmit}
                         className="text-black dark:text-[#FFD551] font-black underline italic"
                       >
-                        Kirim Ulang OTP
+                        {isIndo ? "Kirim Ulang OTP" : "Resend OTP"}
                       </button>
                     </p>
 
@@ -399,7 +403,7 @@ export default function RegisterPage() {
                       onClick={() => setStep(1)}
                       className="w-full text-center text-xs font-black uppercase italic text-slate-400 hover:text-black dark:hover:text-white transition-all underline"
                     >
-                      Kembali ke Form Daftar
+                      {isIndo ? "Kembali ke Form Daftar" : "Back to Registration Form"}
                     </button>
                   </CardContent>
                 </Card>

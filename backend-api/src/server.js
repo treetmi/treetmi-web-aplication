@@ -7,6 +7,8 @@ const cors = require('cors');
 const prisma = require('./config/prisma');
 const { initSocket } = require('./config/socket');
 const { seedTrustBadges } = require('./config/badge.seeder');
+const { seedSuperadmin } = require('./config/admin.seeder');
+const { startMediaCacheCleanup } = require('./services/mediaCache.service');
 
 // Import Routes
 const userRoutes = require('./routes/user.routes');
@@ -17,9 +19,12 @@ const adminRoutes = require('./routes/admin.routes');
 const projectRoutes = require('./routes/project.routes');
 const widgetRoutes = require('./routes/widget.routes');
 const ticketRoutes = require('./routes/ticket.routes');
+const reportRoutes = require('./routes/report.routes');
 const scheduleRoutes = require('./routes/schedule.routes');
 const paymentChannelRoutes = require('./routes/payment-channel.routes');
 const partnerRoutes = require('./routes/partner.routes');
+const giftRoutes = require('./routes/gift.routes');
+
 
 const app = express();
 const server = http.createServer(app);
@@ -42,9 +47,11 @@ app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/projects', projectRoutes);
 app.use('/api/v1/widget-settings', widgetRoutes);
 app.use('/api/v1/tickets', ticketRoutes);
+app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/schedules', scheduleRoutes);
 app.use('/api/v1/payment-channels', paymentChannelRoutes);
 app.use('/api/v1/partners', partnerRoutes);
+app.use('/api/v1/users', giftRoutes); // Gift routes nested under /api/v1/users for creator & public access
 
 // Serve uploaded sound files
 const path = require('path');
@@ -58,6 +65,7 @@ app.get('/', (req, res) => {
  * Initialize Socket.io
  */
 initSocket(server);
+startMediaCacheCleanup();
 
 /**
  * Start Server
@@ -73,9 +81,10 @@ server.listen(PORT, async () => {
     await prisma.$connect();
     console.log('💎 Database Connection: SUCCESS');
     await seedTrustBadges();
+    await seedSuperadmin();
   } catch (err) {
     console.error('❌ Database Connection: FAILED', err.message);
   }
 });
 
-// Force a fresh nodemon reload for the newly generated Prisma Client models!
+// Force a fresh nodemon reload for the newly generated Prisma Client models! [HotReload-Triggered-2]

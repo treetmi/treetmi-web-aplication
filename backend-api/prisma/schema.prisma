@@ -110,16 +110,25 @@ model User {
   updatedAt     DateTime      @updatedAt
 
   // Relations
-  game_packages   GamePackage[]
-  transactions    Transaction[] @relation("StreamerTransactions")
-  bank_account    BankAccount?
-  withdrawals     Withdrawal[]
-  project_assets  ProjectAsset[]
-  widget_setting  WidgetSetting?
+  game_packages         GamePackage[]
+  transactions          Transaction[] @relation("StreamerTransactions")
+  bank_account          BankAccount?
+  withdrawals           Withdrawal[]
+  project_assets        ProjectAsset[]
+  widget_setting        WidgetSetting?
   creator_media_setting CreatorMediaSetting?
-  live_schedules  LiveSchedule[]
-  support_tickets SupportTicket[]
-  schedule_title  String?        @default("Jadwal Live Streaming")
+  live_schedules        LiveSchedule[]
+  support_tickets       SupportTicket[]
+  filterWords           FilterWord[]
+  creator_gift_settings CreatorGiftSetting[] // Toggle Gift mandiri kreator
+  gacha_setting         GachaSetting?
+  gacha_wheel_items     GachaWheelItem[]
+  gacha_logs            GachaLog[]
+  soundboard_items      SoundboardItem[]
+  whatsappAlarmSubscriptions WhatsappAlarmSubscription[]
+  whatsapp_broadcast_logs WhatsappBroadcastLog[]
+  user_reports          UserReport[]
+  schedule_title        String?        @default("Jadwal Live Streaming")
 
   @@map("users")
 }
@@ -153,6 +162,15 @@ model WidgetSetting {
   show_queue_ticker      Boolean  @default(true)
   show_donors_overlay    Boolean  @default(true)
   show_target_overlay    Boolean  @default(true)
+
+  // Target Overlay Customizations
+  target_card_title        String   @default("TARGET DONASI")
+  target_canvas_transparent Boolean  @default(false)
+  target_header_bg         String   @default("#FFD551")
+  target_header_text_color String   @default("#000000")
+  target_body_bg           String   @default("#1c1c1c")
+  target_body_text_color   String   @default("#ffffff")
+  target_progress_color     String   @default("#FFD551")
 
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -193,6 +211,8 @@ model Transaction {
   status        TransactionStatus @default(PENDING)
   message       String?           @db.VarChar(500) // Pesan donasi/mabar
   mediashare_url  String?           @db.VarChar(500)
+  gift_id       String?           @db.Uuid // ID Gift Animasi terpilih (null = donasi biasa)
+  soundboard_item_id String?       @db.Uuid // ID Soundboard Item terpilih (null = tidak beli sound)
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
@@ -200,6 +220,7 @@ model Transaction {
   streamer      User              @relation("StreamerTransactions", fields: [streamer_id], references: [id], onDelete: Cascade)
   mabar_queue   MabarQueue?
   donation_media DonationMedia?
+  gift          SystemGift?       @relation(fields: [gift_id], references: [id], onDelete: SetNull)
 
   @@map("transactions")
 }
@@ -265,9 +286,13 @@ model SiteSetting {
   keywords  String   @default("donasi, creator platform, streamer, game developer, coder, designer, treetmi, mabar")
   feeDonation Decimal  @default(5.00) @db.Decimal(5, 2)
   feeMabar    Decimal  @default(8.00) @db.Decimal(5, 2)
+  feeGift     Decimal  @default(10.00) @db.Decimal(5, 2) // Tarif komisi khusus untuk Gift Animasi
   ahuNumber   String   @default("")
   pseNumber   String   @default("")
   nibNumber   String   @default("")
+  ahuLogo     String   @default("")
+  pseLogo     String   @default("")
+  nibLogo     String   @default("")
   paymentGateway      String   @default("MIDTRANS")
   paymentSandbox      Boolean  @default(true)
   midtransMerchantId  String   @default("")
@@ -278,6 +303,13 @@ model SiteSetting {
   xUrl                String   @default("")
   instagramUrl        String   @default("")
   tiktokUrl           String   @default("")
+  showLeaderboard     Boolean  @default(false)
+  whatsappGateway     String   @default("SIMULATION")
+  whatsappApiKey      String   @default("")
+  whatsappSender      String   @default("")
+  whatsappTemplate    String   @default("Halo! 👾 Kreator favoritmu {creator} sekarang sedang LIVE streaming di Treetmi! Yuk nonton dan dukung di: {url}")
+  supportWhatsapp     String   @default("628123456789")
+  discordReportWebhook String  @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -412,6 +444,7 @@ model CreatorMediaSetting {
   profanity_filter       Boolean  @default(true)
   elevenlabs_api_key     String?  @db.VarChar(500)
   use_elevenlabs         Boolean  @default(false)
+  gift_toggle            Boolean  @default(true) // Master toggle: aktifkan/nonaktifkan gift animasi di halaman donasi
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
@@ -431,4 +464,197 @@ model Partner {
   updatedAt DateTime @updatedAt
 
   @@map("partners")
+}
+
+model Superadmin {
+  id               String   @id @default(uuid()) @db.Uuid
+  username         String   @unique
+  password         String   // Hashed password
+  twoFactorSecret  String?  // Secret untuk Google Authenticator
+  twoFactorEnabled Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("superadmins")
+}
+
+enum FilterWordType {
+  GAMBLING
+  PROFANITY
+}
+
+model FilterWord {
+  id        String         @id @default(uuid()) @db.Uuid
+  word      String
+  type      FilterWordType @default(GAMBLING)
+  userId    String?        @db.Uuid
+  user      User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@map("filter_words")
+}
+
+// ===== SISTEM GIFT ANIMASI LIVE =====
+
+/**
+ * Katalog Gift Animasi Global yang dikelola oleh Superadmin.
+ * Berisi file GIF bergerak, nama, dan harga tetap (fixed price) dalam IDR.
+ */
+model SystemGift {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   // Nama gift (misal: "Coin Drop", "Flying Wallet")
+  url       String   // Path atau URL file .gif bergerak
+  price     Decimal  @db.Decimal(12, 2) // Harga tetap dalam IDR (misal: 10000.00)
+  isActive  Boolean  @default(true)    // Admin bisa matikan global
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  creator_settings CreatorGiftSetting[]
+  transactions     Transaction[]
+
+  @@map("system_gifts")
+}
+
+/**
+ * Konfigurasi toggle gift per-kreator.
+ * Kreator bisa matikan gift tertentu dari channel mereka.
+ */
+model CreatorGiftSetting {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  giftId    String   @db.Uuid
+  isEnabled Boolean  @default(true) // true = gift aktif di channel kreator ini
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gift      SystemGift @relation(fields: [giftId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, giftId])
+  @@map("creator_gift_settings")
+}
+
+// ===== SISTEM GAMIFIKASI & WIDGET INTERAKTIF (GACHA & SOUNDBOARD) =====
+
+model GachaSetting {
+  id              String   @id @default(uuid()) @db.Uuid
+  streamer_id     String   @unique @db.Uuid
+  is_enabled      Boolean  @default(true)
+  min_donation    Decimal  @default(10000.00) @db.Decimal(12, 2)
+  duration_sec    Int      @default(5)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  streamer        User     @relation(fields: [streamer_id], references: [id], onDelete: Cascade)
+
+  @@map("gacha_settings")
+}
+
+model GachaWheelItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  streamer_id     String   @db.Uuid
+  name            String
+  weight          Int      @default(1)
+  color           String   @default("#FFD551")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  streamer        User     @relation(fields: [streamer_id], references: [id], onDelete: Cascade)
+
+  @@map("gacha_wheel_items")
+}
+
+model GachaLog {
+  id              String   @id @default(uuid()) @db.Uuid
+  streamer_id     String   @db.Uuid
+  donor_name      String   @default("Anonymous")
+  amount          Decimal  @db.Decimal(12, 2)
+  reward_name     String
+  createdAt       DateTime @default(now())
+
+  streamer        User     @relation(fields: [streamer_id], references: [id], onDelete: Cascade)
+
+  @@map("gacha_logs")
+}
+
+model SoundboardItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  streamer_id     String   @db.Uuid
+  name            String
+  sound_url       String
+  price           Decimal  @default(2000.00) @db.Decimal(12, 2)
+  is_active       Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  streamer        User     @relation(fields: [streamer_id], references: [id], onDelete: Cascade)
+
+  @@map("soundboard_items")
+}
+
+model WhatsappAlarmSubscription {
+  id          String   @id @default(uuid()) @db.Uuid
+  streamerId  String   @db.Uuid
+  phoneNumber String
+  createdAt   DateTime @default(now())
+
+  // Relations
+  streamer    User     @relation(fields: [streamerId], references: [id], onDelete: Cascade)
+
+  @@unique([streamerId, phoneNumber])
+  @@map("whatsapp_alarm_subscriptions")
+}
+
+model WhatsappBroadcastLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  streamerId    String   @db.Uuid
+  phoneNumber   String
+  message       String   @db.VarChar(1000)
+  status        String   // SUCCESS / FAILED / SIMULATED
+  gateway       String   // SIMULATION / FONNTE / WABLAS
+  errorMessage  String?  @db.VarChar(1000)
+  createdAt     DateTime @default(now())
+
+  // Relations
+  streamer      User     @relation(fields: [streamerId], references: [id], onDelete: Cascade)
+
+  @@map("whatsapp_broadcast_logs")
+}
+
+enum ReportStatus {
+  PENDING
+  INVESTIGATING
+  RESOLVED
+  DISMISSED
+}
+
+enum ReportCategory {
+  SCAM
+  INAPPROPRIATE
+  HARASSMENT
+  TECHNICAL
+  DONATION
+  OTHER
+}
+
+model UserReport {
+  id              String         @id @default(uuid()) @db.Uuid
+  reporter_email  String
+  reporter_name   String?
+  target_user_id  String?        @db.Uuid
+  target_username String?
+  category        ReportCategory @default(OTHER)
+  details         String         @db.VarChar(2000)
+  screenshot_url  String
+  status          ReportStatus   @default(PENDING)
+  admin_notes     String?        @db.VarChar(2000)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  target_user     User?          @relation(fields: [target_user_id], references: [id], onDelete: SetNull)
+
+  @@map("user_reports")
 }

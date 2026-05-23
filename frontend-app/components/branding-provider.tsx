@@ -71,34 +71,7 @@ export function BrandingProvider({ children }: { children: React.ReactNode }) {
             }
           }
         } catch (err) {
-          console.warn("Gagal sinkronisasi branding dari public API, mencoba admin API:", err)
-          
-          // Fallback: try admin API
-          try {
-            const res = await fetch(ADMIN_API.settings)
-            const json = await res.json()
-            if (json.success && json.data) {
-              const data = json.data
-              const cleanText = data.logoText || "treetmi"
-              const cleanLogo = data.logoUrl && !data.logoUrl.startsWith("blob:") ? data.logoUrl : ""
-              const cleanIcon = data.iconUrl && !data.iconUrl.startsWith("blob:") ? data.iconUrl : ""
-
-              localStorage.setItem("treetmi_logo_text", cleanText)
-              localStorage.setItem("treetmi_logo_url", cleanLogo)
-              localStorage.setItem("treetmi_icon_url", cleanIcon)
-
-              if (cleanIcon) {
-                updateFavicon(cleanIcon)
-              }
-
-              if (data.seoTitle) {
-                document.title = data.seoTitle
-                localStorage.setItem("treetmi_seo_title", data.seoTitle)
-              }
-            }
-          } catch (err2) {
-            console.warn("Backend offline saat sinkronisasi branding global:", err2)
-          }
+          console.warn("Gagal sinkronisasi branding dari public API:", err)
         }
       }
 

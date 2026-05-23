@@ -14,8 +14,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Moon, Sun, Languages, LayoutDashboard, UserCircle, LogOut, Video, Settings, Coins } from "lucide-react"
-import { ADMIN_API } from "@/lib/api"
+import { Moon, Sun, Languages, LayoutDashboard, UserCircle, LogOut, Video, Settings, Coins, Compass, Trophy } from "lucide-react"
+import { ADMIN_API, PUBLIC_API } from "@/lib/api"
 
 export function Navbar() {
   const { setTheme } = useTheme()
@@ -77,7 +77,7 @@ export function Navbar() {
       const loadSettings = async () => {
         try {
           // Fetch settings from server database
-          const res = await fetch(ADMIN_API.settings)
+          const res = await fetch(PUBLIC_API.publicSettings)
           const json = await res.json()
           
           if (json.success && json.data) {
@@ -141,6 +141,24 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-1 md:gap-4 flex-shrink-0">
+          {/* Desktop Navigation Links */}
+          <div className="hidden md:flex items-center gap-4 mr-3">
+            <Link 
+              href="/creators" 
+              className="text-xs font-black uppercase italic text-slate-600 dark:text-zinc-400 hover:text-[#FFD551] dark:hover:text-[#FFD551] transition-colors flex items-center gap-1.5"
+            >
+              <Compass className="h-[1.15rem] w-[1.15rem]" />
+              <span>{lang === "id" ? "Jelajahi" : "Explore"}</span>
+            </Link>
+            <Link 
+              href="/leaderboard" 
+              className="text-xs font-black uppercase italic text-slate-600 dark:text-zinc-400 hover:text-[#FFD551] dark:hover:text-[#FFD551] transition-colors flex items-center gap-1.5"
+            >
+              <Trophy className="h-[1.15rem] w-[1.15rem]" />
+              <span>{lang === "id" ? "Top Creator" : "Top Creators"}</span>
+            </Link>
+          </div>
+
           {mounted ? (
             <>
               {/* Dashboard Link removed to avoid duplication with dropdown */}
@@ -158,7 +176,7 @@ export function Navbar() {
               {/* Language Toggle */}
               <DropdownMenu>
                 <DropdownMenuTrigger className="flex items-center justify-center h-8 w-8 md:h-9 md:w-9 rounded-none hover:bg-accent hover:text-accent-foreground transition-colors outline-none border-2 border-transparent hover:border-primary cursor-pointer">
-                  <Languages className="h-4 w-4" />
+                  <Languages className="h-[1.35rem] w-[1.35rem] md:h-6 md:w-6" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="rounded-none border-2 border-border">
                   <DropdownMenuItem onClick={() => setLang("id")} className="font-bold uppercase italic">
@@ -173,7 +191,7 @@ export function Navbar() {
               {/* Currency Selector */}
               <DropdownMenu>
                 <DropdownMenuTrigger className="flex items-center justify-center gap-0.5 h-8 md:h-9 px-1.5 md:px-2 hover:bg-accent hover:text-accent-foreground transition-colors outline-none border-2 border-transparent hover:border-primary cursor-pointer">
-                  <Coins className="h-4 w-4 text-[#FFD551]" />
+                  <Coins className="h-[1.35rem] w-[1.35rem] md:h-6 md:w-6 text-[#FFD551]" />
                   <span className="text-[10px] md:text-xs font-black uppercase italic">{currency}</span>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="rounded-none border-2 border-border">
@@ -197,8 +215,8 @@ export function Navbar() {
               {/* Theme Toggle */}
               <DropdownMenu>
                 <DropdownMenuTrigger className="flex items-center justify-center h-8 w-8 md:h-9 md:w-9 rounded-none hover:bg-accent hover:text-accent-foreground transition-colors outline-none border-2 border-transparent hover:border-primary relative cursor-pointer">
-                  <Sun className="h-[1.1rem] w-[1.1rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                  <Moon className="absolute h-[1.1rem] w-[1.1rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                  <Sun className="h-[1.35rem] w-[1.35rem] md:h-6 md:w-6 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                  <Moon className="absolute h-[1.35rem] w-[1.35rem] md:h-6 md:w-6 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                   <span className="sr-only">Toggle theme</span>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="rounded-none border-2 border-border">
@@ -228,14 +246,14 @@ export function Navbar() {
                     <Link href="/dashboard?tab=overview" passHref>
                       <DropdownMenuItem className="font-bold italic cursor-pointer flex items-center gap-2">
                         <LayoutDashboard className="h-4 w-4 text-slate-500" />
-                        Dashboard
+                        {lang === "id" ? "Dashboard" : "Dashboard"}
                       </DropdownMenuItem>
                     </Link>
                     
                     <Link href="/dashboard?tab=profile" passHref>
                       <DropdownMenuItem className="font-bold italic cursor-pointer flex items-center gap-2">
                         <Settings className="h-4 w-4 text-[#FFD551]" />
-                        Pengaturan Profil
+                        {lang === "id" ? "Pengaturan Profil" : "Profile Settings"}
                       </DropdownMenuItem>
                     </Link>
 
@@ -263,9 +281,9 @@ export function Navbar() {
                   href="/login"
                   className={cn(buttonVariants(), "bg-primary text-primary-foreground font-black uppercase italic rounded-none border-b-4 border-black/20 gap-1.5 h-8 md:h-9 px-3 md:px-4 text-xs md:text-sm")}
                 >
-                  <UserCircle className="h-4 w-4" />
+                  <UserCircle className="h-[1.35rem] w-[1.35rem] md:h-6 md:w-6" />
                   <span className="hidden sm:inline">{t.common.login}</span>
-                  <span className="sm:hidden">Login</span>
+                  <span className="sm:hidden">{t.common.login}</span>
                 </Link>
               )}
             </>

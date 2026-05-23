@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const filterService = require('./filter.service');
 
 /**
  * Service for Financial Transactions, Webhooks, and Withdrawals
@@ -8,6 +9,8 @@ class FinanceService {
    * Mencatat transaksi awal dengan status PENDING
    */
   async createTransaction(data) {
+    const filteredMessage = await filterService.filterMessageIfNeeded(data.streamer_id, data.message);
+    
     return await prisma.transaction.create({
       data: {
         streamer_id: data.streamer_id,
@@ -16,10 +19,12 @@ class FinanceService {
         platform_fee: 0, // Dihitung saat sukses
         net_amount: 0,   // Dihitung saat sukses
         type: data.type,
-        message: data.message,
+        message: filteredMessage,
         status: 'PENDING',
         reference_id: data.reference_id,
         mediashare_url: data.mediashare_url,
+        gift_id: data.gift_id || null,
+        soundboard_item_id: data.soundboard_item_id || null,
         ...(data.donation_media && {
           donation_media: {
             create: {
@@ -53,17 +58,29 @@ class FinanceService {
       // 2. Hitung fee & net amount dynamically from database
       let donationRate = 5.00;
       let mabarRate = 8.00;
+      let giftRate = 10.00;
       try {
         const activeSettings = await tx.siteSetting.findFirst();
         if (activeSettings) {
           donationRate = parseFloat(activeSettings.feeDonation);
           mabarRate = parseFloat(activeSettings.feeMabar);
+          giftRate = parseFloat(activeSettings.feeGift || 10);
         }
       } catch (err) {
         console.error("Error loading active fee rates in webhook settlement:", err);
       }
 
-      const activeFeePercent = transaction.type === 'DONATION' ? donationRate : mabarRate;
+      // Pilih tarif: Gift > Donasi Biasa > Mabar
+      let activeFeePercent;
+      if (transaction.gift_id) {
+        // Transaksi Gift Animasi menggunakan tarif komisi Gift khusus
+        activeFeePercent = giftRate;
+      } else if (transaction.type === 'DONATION') {
+        activeFeePercent = donationRate;
+      } else {
+        activeFeePercent = mabarRate;
+      }
+
       const platformFee = (Number(transaction.gross_amount) * activeFeePercent) / 100;
       const netAmount = Number(transaction.gross_amount) - platformFee;
 
@@ -77,7 +94,8 @@ class FinanceService {
           status: 'SUCCESS'
         },
         include: {
-          donation_media: true
+          donation_media: true,
+          gift: true
         }
       });
 
@@ -161,7 +179,11 @@ class FinanceService {
   async getFinancialHistory(streamerId) {
     const transactions = await prisma.transaction.findMany({
       where: { streamer_id: streamerId },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      include: {
+        donation_media: true,
+        gift: { select: { id: true, name: true, price: true, url: true } }
+      }
     });
 
     const withdrawals = await prisma.withdrawal.findMany({
@@ -169,7 +191,27 @@ class FinanceService {
       orderBy: { createdAt: 'desc' }
     });
 
-    return { transactions, withdrawals };
+    const gachaLogs = await prisma.gachaLog.findMany({
+      where: { streamer_id: streamerId }
+    });
+
+    const enrichedTransactions = transactions.map(tx => {
+      const match = gachaLogs.find(log => {
+        const nameMatch = log.donor_name.toLowerCase() === tx.sender_name.toLowerCase();
+        const amountMatch = Math.abs(Number(log.amount) - Number(tx.gross_amount)) < 0.01;
+        const timeDiffCreated = Math.abs(new Date(log.createdAt).getTime() - new Date(tx.createdAt).getTime());
+        const timeDiffUpdated = Math.abs(new Date(log.createdAt).getTime() - new Date(tx.updatedAt).getTime());
+        const timeMatch = timeDiffCreated < 15000 || timeDiffUpdated < 15000;
+        return nameMatch && amountMatch && timeMatch;
+      });
+
+      return {
+        ...tx,
+        gacha_log: match ? { reward_name: match.reward_name } : null
+      };
+    });
+
+    return { transactions: enrichedTransactions, withdrawals };
   }
 }
 

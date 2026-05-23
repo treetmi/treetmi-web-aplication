@@ -3,10 +3,13 @@
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { PUBLIC_API } from "@/lib/api"
+import { useLanguage } from "@/components/language-provider"
 
 export function Footer() {
+  const { lang } = useLanguage()
+  const isIndo = lang === "id"
   const currentYear = new Date().getFullYear()
-  const [permits, setPermits] = useState({ ahu: "", pse: "", nib: "" })
+  const [permits, setPermits] = useState({ ahu: "", pse: "", nib: "", ahuLogo: "", pseLogo: "", nibLogo: "" })
   const [logoText, setLogoText] = useState("")
   const [logoUrl, setLogoUrl] = useState("")
   const [companyName, setCompanyName] = useState("")
@@ -29,7 +32,10 @@ export function Footer() {
           setPermits({
             ahu: json.data.ahuNumber || "",
             pse: json.data.pseNumber || "",
-            nib: json.data.nibNumber || ""
+            nib: json.data.nibNumber || "",
+            ahuLogo: json.data.ahuLogo || "",
+            pseLogo: json.data.pseLogo || "",
+            nibLogo: json.data.nibLogo || ""
           })
           setCompanyName(json.data.companyName || "PT Karya Putri Cikal")
           setSocials({
@@ -40,7 +46,7 @@ export function Footer() {
           })
         }
       })
-      .catch(() => {})
+      .catch(() => { })
 
     // Fetch partners
     fetch(PUBLIC_API.partners)
@@ -56,15 +62,15 @@ export function Footer() {
   return (
     <footer className="w-full bg-background text-slate-500 dark:text-[#A09E96] py-16 border-t border-[#EAE9E4] dark:border-[#262626] relative z-10">
       <div className="container mx-auto px-6 md:px-12 max-w-[1360px] space-y-12 flex flex-col items-center">
-        
+
         {/* Brand Logo, Description, and Permits (Centered & Theme-Safe) */}
         <div className="w-full flex flex-col items-center text-center space-y-4 max-w-2xl">
           <Link href="/" className="inline-block">
             {logoUrl ? (
-              <img 
-                src={logoUrl} 
-                alt={logoText || "Treetmi"} 
-                className="h-10 md:h-12 w-auto object-contain" 
+              <img
+                src={logoUrl}
+                alt={logoText || "Treetmi"}
+                className="h-10 md:h-12 w-auto object-contain"
               />
             ) : (
               <span className="text-3xl font-black italic uppercase tracking-tighter text-black dark:text-white">
@@ -72,27 +78,44 @@ export function Footer() {
               </span>
             )}
           </Link>
-          
+
           <p className="text-sm md:text-base text-slate-650 dark:text-[#A09E96] leading-relaxed font-bold">
-            Platform Dukungan Kreator Terbesar di Indonesia. Kirim donasi instan, request mabar, dan dukung kreator favoritmu secara langsung dengan fee potongan terendah.
+            {isIndo
+              ? "Platform Dukungan Kreator Terbesar di Indonesia. Kirim donasi instan, request mabar, dan dukung kreator favoritmu secara langsung dengan fee potongan terendah."
+              : "The Largest Creator Support Platform in Indonesia. Send instant donations, request play sessions, and support your favorite creators directly with the lowest transaction fees."}
           </p>
 
           {/* Legal Permits (Horizontal Centered Row) */}
           {(permits.ahu || permits.pse || permits.nib) && (
-            <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs md:text-sm font-black text-slate-450 dark:text-zinc-500 uppercase tracking-wider pt-1">
+            <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs md:text-sm font-black text-slate-450 dark:text-zinc-550 uppercase tracking-wider pt-1 items-center">
               {permits.ahu && (
-                <span className="flex items-center gap-1">
-                  ⚖️ AHU: <span className="text-slate-600 dark:text-[#A09E96]">{permits.ahu}</span>
+                <span className="flex items-center gap-1.5">
+                  {permits.ahuLogo ? (
+                    <img src={permits.ahuLogo} alt="AHU Logo" className="h-5 w-auto object-contain inline-block rounded-sm" />
+                  ) : (
+                    <span>⚖️</span>
+                  )}
+                  <span>AHU:</span> <span className="text-slate-600 dark:text-[#A09E96] normal-case font-bold">{permits.ahu}</span>
                 </span>
               )}
               {permits.nib && (
-                <span className="flex items-center gap-1">
-                  🏢 NIB: <span className="text-slate-600 dark:text-[#A09E96]">{permits.nib}</span>
+                <span className="flex items-center gap-1.5">
+                  {permits.nibLogo ? (
+                    <img src={permits.nibLogo} alt="NIB Logo" className="h-5 w-auto object-contain inline-block rounded-sm" />
+                  ) : (
+                    <span>🏢</span>
+                  )}
+                  <span>NIB:</span> <span className="text-slate-600 dark:text-[#A09E96] normal-case font-bold">{permits.nib}</span>
                 </span>
               )}
               {permits.pse && (
-                <span className="flex items-center gap-1">
-                  💻 PSE: <span className="text-slate-600 dark:text-[#A09E96]">{permits.pse}</span>
+                <span className="flex items-center gap-1.5">
+                  {permits.pseLogo ? (
+                    <img src={permits.pseLogo} alt="PSE Logo" className="h-5 w-auto object-contain inline-block rounded-sm" />
+                  ) : (
+                    <span>💻</span>
+                  )}
+                  <span>PSE:</span> <span className="text-slate-600 dark:text-[#A09E96] normal-case font-bold">{permits.pse}</span>
                 </span>
               )}
             </div>
@@ -101,9 +124,9 @@ export function Footer() {
 
         {/* Horizontal Navigation List (Theme-Safe Row) */}
         <div className="w-full flex flex-wrap gap-6 md:gap-8 justify-center text-center text-sm md:text-base font-bold text-slate-600 dark:text-[#A09E96]">
-          <Link href="/about" className="hover:text-black dark:hover:text-white transition-colors">Tentang Kami</Link>
-          <Link href="/terms" className="hover:text-black dark:hover:text-white transition-colors">Syarat & Ketentuan</Link>
-          <Link href="/privacy" className="hover:text-black dark:hover:text-white transition-colors">Kebijakan Privasi</Link>
+          <Link href="/about" className="hover:text-black dark:hover:text-white transition-colors">{isIndo ? "Tentang Kami" : "About Us"}</Link>
+          <Link href="/terms" className="hover:text-black dark:hover:text-white transition-colors">{isIndo ? "Syarat & Ketentuan" : "Terms & Conditions"}</Link>
+          <Link href="/privacy" className="hover:text-black dark:hover:text-white transition-colors">{isIndo ? "Kebijakan Privasi" : "Privacy Policy"}</Link>
           <Link href="/faq" className="hover:text-black dark:hover:text-white transition-colors">FAQ</Link>
         </div>
 
@@ -112,19 +135,19 @@ export function Footer() {
           <div className="w-full flex flex-col items-center space-y-4">
             <div className="flex flex-wrap gap-4 items-center justify-center">
               {partners.map((partner) => {
-                const partnerUrl = partner.logo_url.startsWith("http") 
-                  ? partner.logo_url 
+                const partnerUrl = partner.logo_url.startsWith("http")
+                  ? partner.logo_url
                   : `${PUBLIC_API.partners.replace('/partners', '')}${partner.logo_url}`
                 const content = (
-                  <div 
-                    key={partner.id} 
+                  <div
+                    key={partner.id}
                     className="bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:border-[#FFD551] dark:hover:border-[#FFD551] transition-all p-3 rounded-2xl h-14 w-32 flex items-center justify-center cursor-pointer group shadow-sm"
                     title={partner.name}
                   >
-                    <img 
-                      src={partnerUrl} 
-                      alt={partner.name} 
-                      className="max-h-full max-w-full object-contain filter dark:brightness-95 group-hover:scale-105 transition-all" 
+                    <img
+                      src={partnerUrl}
+                      alt={partner.name}
+                      className="max-h-full max-w-full object-contain filter dark:brightness-95 group-hover:scale-105 transition-all"
                     />
                   </div>
                 )
@@ -142,13 +165,13 @@ export function Footer() {
 
         {/* Socials & Copyright (Centered Stack) */}
         <div className="w-full flex flex-col items-center gap-8 pt-8 border-t border-[#EAE9E4] dark:border-[#262626]">
-          
+
           {/* Social Links Circle Buttons */}
           <div className="flex items-center justify-center gap-6">
             {/* Discord */}
-            <a 
-              href={socials.discord || "https://discord.gg"} 
-              target="_blank" 
+            <a
+              href={socials.discord || "https://discord.gg"}
+              target="_blank"
               rel="noopener noreferrer"
               className="h-12 w-12 rounded-full bg-[#FFD551] text-black border-2 border-black flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-[3px_3px_0px_#000]"
               title="Discord"
@@ -158,9 +181,9 @@ export function Footer() {
               </svg>
             </a>
             {/* X (Twitter) */}
-            <a 
-              href={socials.x || "https://x.com"} 
-              target="_blank" 
+            <a
+              href={socials.x || "https://x.com"}
+              target="_blank"
               rel="noopener noreferrer"
               className="h-12 w-12 rounded-full bg-[#FFD551] text-black border-2 border-black flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-[3px_3px_0px_#000]"
               title="X"
@@ -170,9 +193,9 @@ export function Footer() {
               </svg>
             </a>
             {/* Instagram */}
-            <a 
-              href={socials.instagram || "https://instagram.com"} 
-              target="_blank" 
+            <a
+              href={socials.instagram || "https://instagram.com"}
+              target="_blank"
               rel="noopener noreferrer"
               className="h-12 w-12 rounded-full bg-[#FFD551] text-black border-2 border-black flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-[3px_3px_0px_#000]"
               title="Instagram"
@@ -182,11 +205,11 @@ export function Footer() {
               </svg>
             </a>
             {/* TikTok */}
-            <a 
-              href={socials.tiktok || "https://tiktok.com"} 
-              target="_blank" 
+            <a
+              href={socials.tiktok || "https://tiktok.com"}
+              target="_blank"
               rel="noopener noreferrer"
-              className="h-12 w-12 rounded-full bg-[#FFD551] text-black border-2 border-black flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-[3px_3px_0px_#000]"
+              className="h-12 w-12 rounded-full bg-[#FFD551] text-[#000000] border-2 border-black flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-[3px_3px_0px_#000]"
               title="TikTok"
             >
               <svg className="h-6 w-6 fill-current" viewBox="0 0 24 24">
@@ -196,20 +219,26 @@ export function Footer() {
           </div>
 
           {/* Copyright text */}
-          <div className="text-center space-y-1">
+          <div className="text-center space-y-2 flex flex-col items-center">
             <p className="text-xs md:text-sm font-semibold text-slate-500 dark:text-[#A09E96]">
-              © {currentYear} {companyName || "Treetmi.id"}. Hak Cipta Dilindungi Undang-Undang.
+              © {currentYear} {companyName || "PT Karya Putri Cikal"}. {isIndo ? "Hak Cipta Dilindungi Undang-Undang." : "All Rights Reserved."}
             </p>
-            <p className="text-[10px] md:text-xs font-bold text-slate-400 dark:text-zinc-650 italic">
-              Merek dagang dari {companyName || "PT Karya Putri Cikal"}, perusahaan terdaftar di Indonesia
+            <p className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-[#EAE9E4]">
+              Powered by <span className="text-[#FFD551]">Treetmi.id</span>
             </p>
-          </div>
+            
+            {/* Build ID Badge directly inside the block */}
+            <div className="pt-1.5">
+              <span className="inline-block text-[9px] font-bold font-mono tracking-wider bg-[#FFD551] text-black border border-black px-3 py-1 uppercase select-none">
+                BUILD ID: treetmi-v2.6.4-prod
+              </span>
+            </div>
 
-          {/* Build ID String */}
-          <div className="w-full text-center pt-2">
-            <span className="text-[10px] font-mono tracking-widest text-slate-450 dark:text-zinc-600">
-              BUILD ID: treetmi-v2.6.4-prod
-            </span>
+            <p className="text-[10px] md:text-xs font-bold text-slate-400 dark:text-zinc-650 italic pt-1">
+              {isIndo
+                ? `Merek dagang dari ${companyName || "PT Karya Putri Cikal"}, perusahaan terdaftar di Indonesia`
+                : `Trademarks of ${companyName || "PT Karya Putri Cikal"}, a registered company in Indonesia`}
+            </p>
           </div>
 
         </div>

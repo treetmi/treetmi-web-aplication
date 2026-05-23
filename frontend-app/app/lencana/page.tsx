@@ -3,14 +3,17 @@
 import React, { useState, useEffect } from "react"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
-import { Award, ArrowLeft, ExternalLink, HelpCircle, Users, Sparkles, CheckCircle2 } from "lucide-react"
+import { Award, ArrowLeft, ExternalLink, Users, Sparkles, CheckCircle2 } from "lucide-react"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { PUBLIC_API } from "@/lib/api"
+import { useLanguage } from "@/components/language-provider"
 
 export default function LencanaPage() {
   const [badges, setBadges] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const { lang } = useLanguage()
+  const isIndo = lang === "id"
 
   useEffect(() => {
     const fetchBadges = async () => {
@@ -52,7 +55,7 @@ export default function LencanaPage() {
         
         {/* Back Link */}
         <Link href="/" className="inline-flex items-center gap-2 text-xs font-black italic text-slate-500 hover:text-amber-500 transition-colors mb-8 cursor-pointer">
-          <ArrowLeft className="size-4" /> KEMBALI KE BERANDA
+          <ArrowLeft className="size-4" /> {isIndo ? "KEMBALI KE BERANDA" : "BACK TO HOME"}
         </Link>
 
         {/* Hero Section */}
@@ -72,7 +75,7 @@ export default function LencanaPage() {
             transition={{ delay: 0.1, duration: 0.5 }}
             className="text-4xl md:text-5xl font-black italic tracking-tighter text-slate-900 dark:text-white"
           >
-            LENCANA TINGKAT KREATOR
+            {isIndo ? "LENCANA TINGKAT KREATOR" : "CREATOR BADGE TIERS"}
           </motion.h1>
           
           <motion.p
@@ -81,7 +84,9 @@ export default function LencanaPage() {
             transition={{ delay: 0.2, duration: 0.5 }}
             className="text-sm md:text-base text-slate-500 dark:text-zinc-400 font-bold max-w-2xl mx-auto leading-relaxed"
           >
-            Sistem Lencana Kepercayaan Kreator. Dapatkan dukungan dari supporter unik dan tingkatkan peringkat lencana kreator Anda untuk memancarkan reputasi premium di platform!
+            {isIndo 
+              ? "Sistem Lencana Kepercayaan Kreator. Dapatkan dukungan dari supporter unik dan tingkatkan peringkat lencana kreator Anda untuk memancarkan reputasi premium di platform!"
+              : "Creator Trust Badge System. Acquire support from unique supporters and level up your creator badge to highlight a premium reputation on the platform!"}
           </motion.p>
         </div>
 
@@ -126,12 +131,14 @@ export default function LencanaPage() {
                   </div>
 
                   <p className="text-xs font-semibold text-slate-500 dark:text-zinc-400 leading-relaxed">
-                    Visual badge eksklusif dengan efek background dinamis dan ikon animasi orisinal untuk mempercantik profile sidebar dan widget dashboard kreator Anda.
+                    {isIndo
+                      ? "Visual badge eksklusif dengan efek background dinamis dan ikon animasi orisinal untuk mempercantik profile sidebar dan widget dashboard kreator Anda."
+                      : "Exclusive visual badge featuring dynamic background effects and original animated icons to embellish your profile sidebar and creator dashboard widgets."}
                   </p>
 
                   <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs pt-1">
                     <span className="flex items-center gap-1 font-extrabold text-slate-800 dark:text-zinc-300">
-                      <Users className="size-4 text-slate-400" /> Min. {badge.min_supporters} Supporter Unik
+                      <Users className="size-4 text-slate-400" /> Min. {badge.min_supporters} {isIndo ? "Supporter Unik" : "Unique Supporters"}
                     </span>
                     <span className="flex items-center gap-1 font-extrabold text-emerald-600 dark:text-emerald-400">
                       <CheckCircle2 className="size-4" /> Live Rendered
@@ -144,7 +151,9 @@ export default function LencanaPage() {
             {badges.length === 0 && (
               <div className="col-span-2 text-center py-16 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-[2.5rem]">
                 <Award className="h-12 w-12 text-slate-350 mx-auto mb-2" />
-                <p className="text-slate-400 text-xs font-bold italic">Tidak ada lencana tingkat kreator terdaftar.</p>
+                <p className="text-slate-400 text-xs font-bold italic">
+                  {isIndo ? "Tidak ada lencana tingkat kreator terdaftar." : "No creator badge tiers registered."}
+                </p>
               </div>
             )}
           </motion.div>
@@ -162,10 +171,16 @@ export default function LencanaPage() {
           
           <div className="flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
             <div className="space-y-4 max-w-2xl text-center md:text-left">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FFD551]/10 text-[#FFD551] text-[10px] font-black uppercase italic tracking-widest"><Sparkles className="size-3.5" /> Platform Panduan Resmi</span>
-              <h2 className="text-2xl md:text-3xl font-black italic tracking-tighter leading-tight">BUTUH PANDUAN INTEGRASI SELENGKAPNYA?</h2>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FFD551]/10 text-[#FFD551] text-[10px] font-black uppercase italic tracking-widest">
+                <Sparkles className="size-3.5" /> {isIndo ? "Platform Panduan Resmi" : "Official Guidebook"}
+              </span>
+              <h2 className="text-2xl md:text-3xl font-black italic tracking-tighter leading-tight uppercase">
+                {isIndo ? "BUTUH PANDUAN INTEGRASI SELENGKAPNYA?" : "NEED COMPLETE INTEGRATION GUIDELINES?"}
+              </h2>
               <p className="text-xs md:text-sm font-semibold text-slate-300 leading-relaxed">
-                Pelajari rincian lengkap cara mendapatkan pendukung unik secara organic, tips konfigurasi widget studio untuk menampilkan alert lencana, dan panduan optimasi reputasi di platform kami.
+                {isIndo 
+                  ? "Pelajari rincian lengkap cara mendapatkan pendukung unik secara organic, tips konfigurasi widget studio untuk menampilkan alert lencana, dan panduan optimasi reputasi di platform kami."
+                  : "Learn detailed steps on acquiring organic unique supporters, widget studio configuration tips to display badge alerts, and reputation optimization guides on our platform."}
               </p>
             </div>
 
@@ -173,9 +188,9 @@ export default function LencanaPage() {
               href="https://docs.treetmi.id" 
               target="_blank" 
               rel="noopener noreferrer" 
-              className="bg-[#FFD551] text-black font-black italic hover:bg-[#FFC83B] rounded-2xl h-14 px-8 text-xs shrink-0 cursor-pointer w-full md:w-auto shadow-md flex items-center justify-center gap-2 transition-colors"
+              className="bg-[#FFD551] text-black font-black italic hover:bg-[#FFC83B] rounded-2xl h-14 px-8 text-xs shrink-0 cursor-pointer w-full md:w-auto shadow-md flex items-center justify-center gap-2 transition-colors uppercase"
             >
-              Buka Dokumentasi Resmi <ExternalLink className="size-4" />
+              {isIndo ? "Buka Dokumentasi Resmi" : "Open Official Documentation"} <ExternalLink className="size-4" />
             </a>
           </div>
         </motion.div>

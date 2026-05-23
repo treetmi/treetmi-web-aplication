@@ -205,6 +205,7 @@ export default function CreatorsTab({
                 <TableHead className="text-xs font-bold text-slate-500 dark:text-zinc-400 italic">Centang Verified</TableHead>
                 <TableHead className="text-xs font-bold text-slate-500 dark:text-zinc-400 italic">Status Pengajuan</TableHead>
                 <TableHead className="text-xs font-bold text-slate-500 dark:text-zinc-400 italic">Status Sistem</TableHead>
+                <TableHead className="text-xs font-bold text-slate-500 dark:text-zinc-400 italic">Jumlah Laporan</TableHead>
                 <TableHead className="text-xs font-bold text-slate-500 dark:text-zinc-400 italic text-right px-8">Aksi Moderasi</TableHead>
               </TableRow>
             </TableHeader>
@@ -281,6 +282,15 @@ export default function CreatorsTab({
                     }>
                       {c.status}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {c.reportCount > 0 ? (
+                      <Badge className="bg-red-500 text-white text-[9px] font-black rounded-lg border-none px-2.5 py-0.5 animate-pulse">
+                        ⚠️ {c.reportCount} Laporan
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-slate-400 font-bold italic">0</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right px-8">
                     <div className="flex justify-end gap-2">

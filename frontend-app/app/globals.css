@@ -96,7 +96,7 @@
 @layer base {
   * {
     font-family: 'StreamPlayQuicksand', sans-serif !important;
-    @apply border-border outline-none cursor-default;
+    @apply border-border outline-none;
   }
   body {
     font-family: 'StreamPlayQuicksand', sans-serif !important;

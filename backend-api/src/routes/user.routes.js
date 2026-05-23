@@ -4,6 +4,8 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const userController = require('../controllers/user.controller');
+const adminController = require('../controllers/admin.controller');
+const mediaController = require('../controllers/media.controller');
 const { verifyToken } = require('../middlewares/auth.middleware');
 
 // Pastikan folder uploads ada
@@ -58,11 +60,16 @@ router.post('/login-request', userController.loginRequest);
 router.post('/verify-otp', userController.verifyOTP);
 router.post('/google-auth', userController.googleAuth);
 router.get('/profile/:username', userController.getProfile);
+router.post('/profile/:username/whatsapp-alarm', userController.registerWhatsappAlarm);
 router.get('/creators', userController.getPublicCreators); // Public directory
 router.get('/settings/public', userController.getPublicSettings); // Public site settings
+router.get('/avatars', userController.getAllAvatars); // Public list of avatars
 router.get('/widget/:token', userController.resolveWidgetToken); // OBS overlay resolver
 router.get('/target-overlay/:token', userController.getTargetOverlay);
 router.get('/trust-badges', userController.getAllTrustBadges);
+router.post('/media/resolve', mediaController.resolvePublicMedia);
+router.post('/transactions/simulate', adminController.simulateTransaction);
+router.get('/transactions/recent-feed', userController.getRecentFeed);
 
 // Protected Routes
 router.put('/update', verifyToken, userController.updateProfile);
@@ -75,5 +82,18 @@ router.post('/verification/apply', verifyToken, verificationUpload.single('scree
 router.get('/media-settings', verifyToken, userController.getMediaSettings);
 router.put('/media-settings', verifyToken, userController.updateMediaSettings);
 
-module.exports = router;
+// Creator Custom Filter Words Routes
+router.get('/filter-words', verifyToken, userController.getCustomFilterWords);
+router.post('/filter-words', verifyToken, userController.createCustomFilterWord);
+router.delete('/filter-words/:id', verifyToken, userController.deleteCustomFilterWord);
 
+// Creator Gacha Settings Routes
+router.get('/gacha-settings', verifyToken, userController.getGachaSettings);
+router.put('/gacha-settings', verifyToken, userController.updateGachaSettings);
+router.get('/gacha-logs', verifyToken, userController.getGachaLogs);
+
+// Creator Soundboard Routes
+router.get('/soundboard', verifyToken, userController.getSoundboardSettings);
+router.put('/soundboard', verifyToken, userController.updateSoundboardSettings);
+
+module.exports = router;

@@ -3,13 +3,13 @@
 import React, { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { 
-  Heart, Gamepad2, Trophy, Clock, Loader2, Globe, Laptop, Share2, Bell
+  Heart, Gamepad2, Trophy, Clock, Loader2, Globe, Laptop, Share2, Bell, Coins, Activity, Sparkles, Unlock
 } from "lucide-react"
 import { useCurrency } from "@/components/currency-provider"
 import { useLanguage } from "@/components/language-provider"
 import { useTheme } from "next-themes"
 import { toast } from "sonner"
-import { ADMIN_API, PUBLIC_API, API_BASE_URL } from "@/lib/api"
+import { PUBLIC_API, API_BASE_URL } from "@/lib/api"
 import { connectSocket, disconnectSocket } from "@/lib/socket"
 
 // Import modular components
@@ -263,6 +263,7 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
   const displayUsername = Array.isArray(username) ? username[0] : username
   const { currency, convertFromIdr, convertToIdr, format: formatCurrency } = useCurrency()
   const { lang, setLang, t } = useLanguage()
+  const isIndo = lang === "id"
   const { theme, setTheme } = useTheme()
   
   // Real Database Profile States
@@ -287,7 +288,7 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
   }, [])
 
   // Active Hub Tab Selection state
-  const [activeTab, setActiveTab] = useState<"DUKUNG" | "MABAR" | "ANTREAN">("DUKUNG")
+  const [activeTab, setActiveTab] = useState<"DUKUNG" | "MABAR" | "KARYA" | "ANTREAN">("DUKUNG")
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false)
 
   // Dynamic Game Image Fetching from RAWG.io API using developer API key
@@ -422,7 +423,7 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
         const schedJson = await schedRes.json()
         if (schedJson.success) {
           setDbSchedules(schedJson.data || [])
-          setDbScheduleTitle(schedJson.schedule_title || "Jadwal Live Streaming")
+          setDbScheduleTitle(schedJson.schedule_title || (isIndo ? "Jadwal Live Streaming" : "Live Streaming Schedule"))
         }
       } catch (err) {
         console.warn("Gagal mengambil jadwal live dari db:", err)
@@ -462,11 +463,11 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
   const handleShare = () => {
     if (navigator.clipboard) {
       navigator.clipboard.writeText(window.location.href)
-      toast.success("Link profil disalin ke clipboard!", {
-        description: "Bagikan ke teman-temanmu agar mendukung kreator ini.",
+      toast.success(isIndo ? "Link profil disalin ke clipboard!" : "Profile link copied to clipboard!", {
+        description: isIndo ? "Bagikan ke teman-temanmu agar mendukung kreator ini." : "Share it with your friends to support this creator.",
       })
     } else {
-      toast.info("Link profil: " + window.location.href)
+      toast.info((isIndo ? "Link profil: " : "Profile link: ") + window.location.href)
     }
   }
 
@@ -478,17 +479,23 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
     senderContact: string
     senderMessage: string
     mediashareUrl: string
+    giftId?: string | null
+    soundboardItemId?: string | null
+    donationMedia?: {
+      media_type: "YOUTUBE" | "TIKTOK" | "REELS" | "VOICE_NOTE" | "TEBAK_GAMBAR"
+      media_url: string
+    } | null
   }) => {
     const amountInIdr = convertToIdr(Number(donationData.amount))
     if (!donationData.amount || amountInIdr < 5000) {
-      toast.error(`Minimal dukungan adalah ${formatCurrency(convertFromIdr(5000))}`, { duration: 3000 })
+      toast.error(isIndo ? `Minimal dukungan adalah ${formatCurrency(convertFromIdr(5000))}` : `Minimum support is ${formatCurrency(convertFromIdr(5000))}`, { duration: 3000 })
       return
     }
 
-    const finalSender = donationData.isAnonymous ? "Hamba Allah" : donationData.senderName || "Anonim"
+    const finalSender = donationData.isAnonymous ? (isIndo ? "Hamba Allah" : "Anonymous") : donationData.senderName || (isIndo ? "Anonim" : "Anonymous")
     
     try {
-      const response = await fetch(ADMIN_API.simulateTransaction, {
+      const response = await fetch(PUBLIC_API.simulateTransaction, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -502,23 +509,28 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
           currencyCode: currency,
           type: "DONATION",
           message: donationData.senderMessage || `Dukungan untuk @${displayUsername}!`,
-          mediashareUrl: donationData.mediashareUrl || null
+          mediashareUrl: donationData.mediashareUrl || null,
+          giftId: donationData.giftId || null,
+          soundboardItemId: donationData.soundboardItemId || null,
+          donation_media: donationData.donationMedia || null
         })
       })
 
       const json = await response.json()
       if (json.success) {
-        toast.success(`Dukungan sebesar ${formatCurrency(Number(donationData.amount))} berhasil dikirim!`, {
-          description: `Uang donasi dari ${finalSender} berhasil disimulasikan aman ke sub-account kreator.`,
+        toast.success(isIndo ? `Dukungan sebesar ${formatCurrency(Number(donationData.amount))} berhasil dikirim!` : `Support of ${formatCurrency(Number(donationData.amount))} successfully sent!`, {
+          description: isIndo 
+            ? `Uang donasi dari ${finalSender} berhasil disimulasikan aman ke sub-account kreator.`
+            : `Donation from ${finalSender} successfully simulated safely to creator's sub-account.`,
           duration: 6000
         })
         fetchCreatorProfile()
       } else {
-        toast.error("Gagal memproses transaksi.")
+        toast.error(isIndo ? "Gagal memproses transaksi." : "Failed to process transaction.")
       }
     } catch (err) {
       console.error(err)
-      toast.error("Gagal menghubungi server API.")
+      toast.error(isIndo ? "Gagal menghubungi server API." : "Failed to connect to API server.")
     }
   }
 
@@ -535,7 +547,7 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
     const totalAmountIdr = basePriceIdr * mabarData.quantity
 
     try {
-      const response = await fetch(ADMIN_API.simulateTransaction, {
+      const response = await fetch(PUBLIC_API.simulateTransaction, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -554,18 +566,39 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
 
       const json = await response.json()
       if (json.success) {
-        toast.success(`Slot antrean Mabar ${pkg?.gameName} Berhasil Dipesan!`, {
-          description: `Checkout aman terkirim ke Xendit. Nomor antrean Anda terupdate di papan aktivitas!`,
+        toast.success(isIndo ? `Slot antrean Mabar ${pkg?.gameName} Berhasil Dipesan!` : `Mabar slot queue for ${pkg?.gameName} successfully ordered!`, {
+          description: isIndo
+            ? `Checkout aman terkirim ke Xendit. Nomor antrean Anda terupdate di papan aktivitas!`
+            : `Secure checkout sent to Xendit. Your queue number has been updated in the activity board!`,
           duration: 6000
         })
         fetchCreatorProfile()
       } else {
-        toast.error("Gagal memproses antrean mabar.")
+        toast.error(isIndo ? "Gagal memproses antrean mabar." : "Failed to process mabar queue.")
       }
     } catch (err) {
       console.error(err)
-      toast.error("Gagal menghubungi server API.")
+      toast.error(isIndo ? "Gagal menghubungi server API." : "Failed to connect to the API server.")
     }
+  }
+
+  // Submit digital creations checkout transaction simulated into database
+  const onProjectSubmit = async (projectData: {
+    projectId: string
+    title: string
+    amount: string
+    email: string
+    name: string
+    message: string
+  }) => {
+    await onDonationSubmit({
+      amount: projectData.amount,
+      senderName: projectData.name || (isIndo ? "Hamba Allah" : "Anonymous"),
+      isAnonymous: !projectData.name,
+      senderContact: projectData.email,
+      senderMessage: `[KARYA: ${projectData.projectId}] ${projectData.message}`,
+      mediashareUrl: ""
+    })
   }
 
   // Show premium spinner while loading DB records
@@ -577,7 +610,7 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
           <span className="absolute text-xl">👾</span>
         </div>
         <p className="text-xs font-black uppercase italic tracking-widest text-[#706E68] dark:text-[#A09E96]">
-          Sinkronisasi Arena Treetmi...
+          {isIndo ? "Sinkronisasi Arena Treetmi..." : "Synchronizing Treetmi Arena..."}
         </p>
       </div>
     )
@@ -606,22 +639,35 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
 
           {/* Title */}
           <div className="space-y-1">
-            <h1 className="text-lg font-black uppercase tracking-tight text-red-500">Akun Ditangguhkan</h1>
+            <h1 className="text-lg font-black uppercase tracking-tight text-red-500">{isIndo ? "Akun Ditangguhkan" : "Account Suspended"}</h1>
             <p className="text-sm font-bold text-slate-600 dark:text-zinc-300">@{displayUsername}</p>
           </div>
 
           {/* Info */}
           <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 rounded-2xl p-4 text-left space-y-1.5">
-            <p className="text-[10px] font-extrabold uppercase tracking-wider text-red-500">Kenapa ini terjadi?</p>
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-red-500">{isIndo ? "Kenapa ini terjadi?" : "Why did this happen?"}</p>
             <p className="text-[11px] font-semibold text-slate-600 dark:text-zinc-400 leading-relaxed">
-              Akun kreator ini sedang <strong>dinonaktifkan sementara</strong> oleh tim admin.
-              Selama masa penangguhan, kreator <strong>tidak dapat menerima donasi, pesanan mabar, atau layanan apapun.</strong>
+              {isIndo ? (
+                <>
+                  Akun kreator ini sedang <strong>dinonaktifkan sementara</strong> oleh tim admin.
+                  Selama masa penangguhan, kreator <strong>tidak dapat menerima donasi, pesanan mabar, atau layanan apapun.</strong>
+                </>
+              ) : (
+                <>
+                  This creator account is currently <strong>temporarily disabled</strong> by the admin team.
+                  During the suspension, the creator <strong>cannot receive donations, play requests (mabar), or any services.</strong>
+                </>
+              )}
             </p>
           </div>
 
           {/* Badges */}
           <div className="flex flex-wrap justify-center gap-2">
-            {["❌ Donasi Diblokir", "❌ Mabar Diblokir", "❌ Layanan Nonaktif"].map((item) => (
+            {[
+              isIndo ? "❌ Donasi Diblokir" : "❌ Donations Blocked",
+              isIndo ? "❌ Mabar Diblokir" : "❌ Play Blocked",
+              isIndo ? "❌ Layanan Nonaktif" : "❌ Services Inactive"
+            ].map((item) => (
               <span key={item} className="px-3 py-1 text-[9px] font-extrabold uppercase italic tracking-wider rounded-full bg-red-100 dark:bg-red-950/50 text-red-500 border border-red-200 dark:border-red-900/40">
                 {item}
               </span>
@@ -633,11 +679,13 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
             href="/creators"
             className="inline-flex items-center justify-center gap-2 w-full h-11 rounded-2xl bg-slate-900 dark:bg-[#FFD551] text-white dark:text-black text-xs font-black uppercase italic tracking-wider hover:opacity-90 transition-all"
           >
-            🔍 Temukan Kreator Lain
+            {isIndo ? "🔍 Temukan Kreator Lain" : "🔍 Find Other Creators"}
           </a>
 
-          <p className="text-[9px] font-semibold text-slate-400 dark:text-zinc-600 uppercase tracking-wider">
-            © 2026 Treetmi.id — Jika Anda pemilik akun ini, hubungi support.
+          <p className="text-[9px] font-semibold text-slate-400 dark:text-zinc-650 uppercase tracking-wider">
+            {isIndo 
+              ? "© 2026 Treetmi.id — Jika Anda pemilik akun ini, hubungi support." 
+              : "© 2026 Treetmi.id — If you are the owner of this account, contact support."}
           </p>
         </div>
       </div>
@@ -756,7 +804,7 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
               <button 
                 type="button"
                 onClick={() => setLang("id")}
-                className={`px-2.5 py-1 text-[9px] font-extrabold uppercase rounded-lg transition-all ${
+                className={`px-2.5 py-1 text-[9px] font-extrabold uppercase rounded-lg transition-all cursor-pointer ${
                   lang === "id" 
                     ? "bg-[#FFD551] text-black shadow-sm" 
                     : "text-slate-500 dark:text-zinc-400 hover:text-black dark:hover:text-white"
@@ -767,7 +815,7 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
               <button 
                 type="button"
                 onClick={() => setLang("en")}
-                className={`px-2.5 py-1 text-[9px] font-extrabold uppercase rounded-lg transition-all ${
+                className={`px-2.5 py-1 text-[9px] font-extrabold uppercase rounded-lg transition-all cursor-pointer ${
                   lang === "en" 
                     ? "bg-[#FFD551] text-black shadow-sm" 
                     : "text-slate-500 dark:text-zinc-400 hover:text-black dark:hover:text-white"
@@ -781,7 +829,7 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
             <button
               type="button"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="flex items-center justify-center h-8 px-3 rounded-xl bg-slate-100 dark:bg-zinc-950 border border-slate-200/50 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:border-[#FFD551] active:scale-95 transition-all text-[9px] font-extrabold uppercase italic gap-1.5"
+              className="flex items-center justify-center h-8 px-3 rounded-xl bg-slate-100 dark:bg-zinc-950 border border-slate-200/50 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:border-[#FFD551] active:scale-95 transition-all text-[9px] font-extrabold uppercase italic gap-1.5 cursor-pointer"
             >
               {theme === "dark" ? (
                 <>☀️ <span className="hidden sm:inline">LIGHT</span></>
@@ -827,7 +875,7 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
           {/* Share */}
           <button 
             onClick={handleShare}
-            className="flex items-center justify-center h-9 w-9 rounded-xl bg-white border border-[#E5E3DD] shadow-sm hover:bg-[#F8F7F3] active:scale-[0.93] transition-all dark:bg-[#1D1D1D] dark:border-[#2E2E2E] dark:hover:bg-[#262626]"
+            className="flex items-center justify-center h-9 w-9 rounded-xl bg-white border border-[#E5E3DD] shadow-sm hover:bg-[#F8F7F3] active:scale-[0.93] transition-all dark:bg-[#1D1D1D] dark:border-[#2E2E2E] dark:hover:bg-[#262626] cursor-pointer"
             aria-label="Share Profile"
           >
             <Share2 className="h-4 w-4 text-[#706E68] dark:text-[#A09E96]" />
@@ -836,7 +884,7 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
           {/* Bell Notification */}
           <button 
             onClick={() => setIsAlertModalOpen(true)}
-            className="flex items-center justify-center h-9 w-9 rounded-xl bg-white border border-[#E5E3DD] shadow-sm hover:bg-[#F8F7F3] active:scale-[0.93] transition-all dark:bg-[#1D1D1D] dark:border-[#2E2E2E] dark:hover:bg-[#262626] relative"
+            className="flex items-center justify-center h-9 w-9 rounded-xl bg-white border border-[#E5E3DD] shadow-sm hover:bg-[#F8F7F3] active:scale-[0.93] transition-all dark:bg-[#1D1D1D] dark:border-[#2E2E2E] dark:hover:bg-[#262626] relative cursor-pointer"
             aria-label="Stream Alerts"
           >
             <Bell className="h-4 w-4 text-[#706E68] dark:text-[#A09E96]" />
@@ -846,9 +894,9 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
 
         {/* Identity Section that overlaps the banner */}
         <div className="px-6 pb-6 pt-4 flex flex-col md:flex-row items-center md:items-end justify-between gap-6">
-          <div className="flex flex-col md:flex-row items-center md:items-end gap-5 -mt-16 md:-mt-20 relative z-10 text-center md:text-left">
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-5 relative z-10 text-center md:text-left">
             {/* Avatar Rounded Square */}
-            <div className="w-28 h-28 md:w-32 md:h-32 rounded-2xl bg-white border-4 border-zinc-950 dark:border-zinc-800 overflow-hidden flex items-center justify-center text-4xl font-black italic shadow-[4px_4px_0px_#1a1a1a] dark:shadow-[4px_4px_0px_#000000] dark:bg-[#1C1C1C] shrink-0">
+            <div className="w-28 h-28 md:w-32 md:h-32 rounded-2xl bg-white border-4 border-zinc-950 dark:border-zinc-800 overflow-hidden flex items-center justify-center text-4xl font-black italic shadow-[4px_4px_0px_#1a1a1a] dark:shadow-[4px_4px_0px_#000000] dark:bg-[#1C1C1C] shrink-0 -mt-16 md:-mt-20 relative z-10">
               {creatorDbData?.avatar_url ? (
                 <img src={creatorDbData.avatar_url} alt={displayUsername} className="w-full h-full object-cover" />
               ) : (
@@ -865,7 +913,7 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
                   )}
                 </h1>
                 <div className="flex items-center justify-center md:justify-start gap-2">
-                  <span className="text-[9px] font-black text-slate-800 dark:text-zinc-200 uppercase tracking-widest bg-slate-200 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 px-2 py-0.5 rounded-md italic shadow-sm">
+                  <span className="text-[10px] font-black text-[#A07800] dark:text-[#FFD551] uppercase tracking-wider bg-[#FFD551]/10 dark:bg-[#FFD551]/15 border border-[#FFD551]/40 dark:border-[#FFD551]/20 px-2.5 py-0.5 rounded-lg italic shadow-sm shrink-0">
                     {creatorDbData?.role_title || config.role || "CREATOR"}
                   </span>
                   {creatorDbData?.trust_badge && (
@@ -878,8 +926,8 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
                   )}
                 </div>
               </div>
-              <p className="text-xs sm:text-sm font-semibold text-slate-500 dark:text-zinc-400 max-w-[500px] leading-relaxed">
-                {creatorDbData?.bio || config.bio || "No biography written yet."}
+              <p className="text-xs sm:text-sm font-semibold text-slate-500 dark:text-zinc-400 max-w-[750px] leading-relaxed">
+                {creatorDbData?.bio || config.bio || (isIndo ? "Belum ada bio." : "No biography written yet.")}
               </p>
             </div>
           </div>
@@ -902,7 +950,7 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
                   href={externalLink(targetUrl)} 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  className="flex items-center justify-center h-10 w-10 rounded-xl bg-[#FFD551] text-black border-2 border-zinc-950 shadow-[2px_2px_0px_#1a1a1a] dark:shadow-[2px_2px_0px_#000000] hover:bg-[#ffe082] hover:translate-y-[-1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#1a1a1a] transition-all"
+                  className="flex items-center justify-center h-10 w-10 rounded-xl bg-[#FFD551] text-black border-2 border-zinc-950 shadow-[2px_2px_0px_#1a1a1a] dark:shadow-[2px_2px_0px_#000000] hover:bg-[#ffe082] hover:translate-y-[-1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#1a1a1a] transition-all cursor-pointer"
                   title={social.label}
                 >
                   {social.icon}
@@ -930,38 +978,57 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
         {/* Right Side: Action Arena & Tab interactive Hub (col-span-8) */}
         <div className="lg:col-span-8 bg-[#FAF8F2] dark:bg-[#181818] border-2 border-zinc-950 dark:border-zinc-800 rounded-2xl p-6 shadow-[4px_4px_0px_#1a1a1a] dark:shadow-[4px_4px_0px_#000000] space-y-6">
           {/* Custom high-end Tab selector buttons */}
-          <div className="flex bg-[#FAF9F6] border border-[#E5E3DD] p-1.5 rounded-2xl dark:bg-zinc-950/40 dark:border-zinc-800">
+          <div className="flex bg-[#FAF9F6] border border-[#E5E3DD] p-1.5 rounded-2xl dark:bg-zinc-950/40 dark:border-zinc-800 flex-wrap sm:flex-nowrap gap-1">
             <button
               onClick={() => setActiveTab("DUKUNG")}
-              className={`flex-1 py-3 text-[11px] font-black uppercase italic rounded-xl transition-all ${
+              className={`flex-1 py-3 text-[11px] font-black uppercase italic rounded-xl transition-all cursor-pointer ${
                 activeTab === "DUKUNG"
                   ? "bg-[#FFD551] text-black border-2 border-zinc-950 shadow-[2px_2px_0px_#1a1a1a] dark:shadow-[2px_2px_0px_#000000]"
                   : "text-slate-500 hover:text-black dark:text-zinc-400 dark:hover:text-white"
               }`}
             >
-              💎 {t.common.supportAmount || "Dukung"}
+              <span className="flex items-center justify-center gap-1.5">
+                <Heart className="h-3.5 w-3.5 fill-[#FFD551]" /> {isIndo ? "Dukung" : "Support"}
+              </span>
             </button>
             
             <button
               onClick={() => setActiveTab("MABAR")}
-              className={`flex-1 py-3 text-[11px] font-black uppercase italic rounded-xl transition-all ${
+              className={`flex-1 py-3 text-[11px] font-black uppercase italic rounded-xl transition-all cursor-pointer ${
                 activeTab === "MABAR"
                   ? "bg-[#FFD551] text-black border-2 border-zinc-950 shadow-[2px_2px_0px_#1a1a1a] dark:shadow-[2px_2px_0px_#000000]"
                   : "text-slate-500 hover:text-black dark:text-zinc-400 dark:hover:text-white"
               }`}
             >
-              🎮 {creatorDbData?.service_btn_title || "Mabar"} & Karya
+              <span className="flex items-center justify-center gap-1.5">
+                <Gamepad2 className="h-3.5 w-3.5" /> {creatorDbData?.service_btn_title || "Mabar"}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("KARYA")}
+              className={`flex-1 py-3 text-[11px] font-black uppercase italic rounded-xl transition-all cursor-pointer ${
+                activeTab === "KARYA"
+                  ? "bg-[#FFD551] text-black border-2 border-zinc-950 shadow-[2px_2px_0px_#1a1a1a] dark:shadow-[2px_2px_0px_#000000]"
+                  : "text-slate-500 hover:text-black dark:text-zinc-400 dark:hover:text-white"
+              }`}
+            >
+              <span className="flex items-center justify-center gap-1.5">
+                <Unlock className="h-3.5 w-3.5" /> {isIndo ? "Karya" : "Creations"}
+              </span>
             </button>
             
             <button
               onClick={() => setActiveTab("ANTREAN")}
-              className={`flex-1 py-3 text-[11px] font-black uppercase italic rounded-xl transition-all ${
+              className={`flex-1 py-3 text-[11px] font-black uppercase italic rounded-xl transition-all cursor-pointer ${
                 activeTab === "ANTREAN"
                   ? "bg-[#FFD551] text-black border-2 border-zinc-950 shadow-[2px_2px_0px_#1a1a1a] dark:shadow-[2px_2px_0px_#000000]"
                   : "text-slate-500 hover:text-black dark:text-zinc-400 dark:hover:text-white"
               }`}
             >
-              📣 Aktivitas & Antrean
+              <span className="flex items-center justify-center gap-1.5">
+                <Activity className="h-3.5 w-3.5" /> {isIndo ? "Aktivitas" : "Activity"}
+              </span>
             </button>
           </div>
 
@@ -980,11 +1047,24 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
 
             {activeTab === "MABAR" && (
               <MabarTab 
+                mode="MABAR"
                 creatorDbData={creatorDbData}
                 displayUsername={displayUsername}
                 config={config}
-                visiblePackages={visiblePackages}
+                visiblePackages={visiblePackages.filter((pkg: any) => pkg.type === "MABAR")}
                 onMabarSubmit={onMabarSubmit}
+              />
+            )}
+
+            {activeTab === "KARYA" && (
+              <MabarTab 
+                mode="KARYA"
+                creatorDbData={creatorDbData}
+                displayUsername={displayUsername}
+                config={config}
+                visiblePackages={visiblePackages.filter((pkg: any) => pkg.type === "PROJECT")}
+                onMabarSubmit={onMabarSubmit}
+                onProjectSubmit={onProjectSubmit}
               />
             )}
 
@@ -1000,13 +1080,18 @@ export function CreatorProfileView({ username = "budigamer", isPreview = false }
       </div>
 
       {/* 3. FOOTER COPYRIGHT — Minimal, only PT name + Powered by */}
-      <div className="max-w-[1200px] w-full mx-auto mt-auto pt-8 pb-4 text-center relative z-10 space-y-1">
+      <div className="max-w-[1200px] w-full mx-auto mt-auto pt-8 pb-4 text-center relative z-10 space-y-2 flex flex-col items-center">
         <p className="text-[10px] font-extrabold uppercase italic tracking-widest text-slate-400 dark:text-zinc-500">
           © {new Date().getFullYear()} {companyName}
         </p>
-        <p className="text-[8px] font-bold italic text-slate-300 dark:text-zinc-600 tracking-wider">
+        <p className="text-[8px] font-bold italic text-slate-300 dark:text-zinc-650 tracking-wider">
           Powered by Treetmi.id
         </p>
+        <div className="pt-1">
+          <span className="inline-block text-[9px] font-bold font-mono tracking-wider bg-[#FFD551] text-black border border-black px-2.5 py-0.5 uppercase select-none">
+            BUILD ID: treetmi-v2.6.4-prod
+          </span>
+        </div>
       </div>
 
       {/* WhatsApp Alerts Dialog Modal */}

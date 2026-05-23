@@ -12,18 +12,19 @@ interface QueueTabProps {
 
 export function QueueTab({ creatorDbData }: QueueTabProps) {
   const { lang, t } = useLanguage()
+  const isIndo = lang === "id"
 
   // Helper to mask sender names professionally
   const maskSenderName = (name: string) => {
-    if (!name) return "Anonymous"
-    if (name.toLowerCase() === "anonymous") return "Anonymous"
+    if (!name) return isIndo ? "Anonim" : "Anonymous"
+    if (name.toLowerCase() === "anonymous" || name.toLowerCase() === "anonim") return isIndo ? "Anonim" : "Anonymous"
     if (name.length <= 2) return name + "**"
     const first = name.charAt(0)
     const last = name.charAt(name.length - 1)
     return `${first}**${last}`
   }
 
-  // Helper to format relative time in Indonesian
+  // Helper to format relative time
   const formatRelativeTime = (dateString: string) => {
     try {
       const now = new Date()
@@ -34,19 +35,19 @@ export function QueueTab({ creatorDbData }: QueueTabProps) {
       const diffHrs = Math.floor(diffMin / 60)
       const diffDays = Math.floor(diffHrs / 24)
 
-      if (diffSec < 60) return "baru saja"
-      if (diffMin < 60) return `${diffMin} menit lalu`
-      if (diffHrs < 24) return `${diffHrs} jam lalu`
-      if (diffDays === 1) return "kemarin"
-      if (diffDays < 30) return `${diffDays} hari lalu`
+      if (diffSec < 60) return isIndo ? "baru saja" : "just now"
+      if (diffMin < 60) return isIndo ? `${diffMin} menit lalu` : `${diffMin}m ago`
+      if (diffHrs < 24) return isIndo ? `${diffHrs} jam lalu` : `${diffHrs}h ago`
+      if (diffDays === 1) return isIndo ? "kemarin" : "yesterday"
+      if (diffDays < 30) return isIndo ? `${diffDays} hari lalu` : `${diffDays}d ago`
       
-      return past.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })
+      return past.toLocaleDateString(isIndo ? "id-ID" : "en-US", { day: "numeric", month: "short", year: "numeric" })
     } catch (e) {
-      return "baru saja"
+      return isIndo ? "baru saja" : "just now"
     }
   }
 
-  // Testimonials state andautoslide
+  // Testimonials state and autoslide
   const [testiIndex, setTestiIndex] = useState(0)
   const dbReviews = creatorDbData?.reviews || []
   const testimonials = dbReviews.length > 0
@@ -75,19 +76,21 @@ export function QueueTab({ creatorDbData }: QueueTabProps) {
           <div className="flex justify-between items-center gap-2 pb-2 border-b border-slate-200/50 dark:border-zinc-800">
             <span className="text-xs font-black uppercase italic tracking-widest flex items-center gap-1.5 text-slate-800 dark:text-[#EAE9E4] min-w-0">
               <Clock className="h-4 w-4 text-[#FFD551] shrink-0" /> 
-              <span className="truncate">{t.publicProfile?.mabarQueue || "Antrean"} {creatorDbData?.service_btn_title || "Mabar"}</span>
+              <span className="truncate">{t.publicProfile?.mabarQueue || (isIndo ? "Antrean" : "Queue")} {creatorDbData?.service_btn_title || "Mabar"}</span>
             </span>
             <Badge className="bg-red-500 text-white font-black italic rounded-md text-[8px] animate-pulse shrink-0">
-              AKTIF
+              {isIndo ? "AKTIF" : "ACTIVE"}
             </Badge>
           </div>
 
           <div className="space-y-2">
             {!(creatorDbData?.mabar_queues && creatorDbData.mabar_queues.length > 0) ? (
               <div className="p-5 bg-white rounded-2xl border border-dashed border-slate-200 text-center space-y-1 dark:bg-zinc-900 dark:border-zinc-800">
-                <p className="text-[10px] font-black italic text-slate-400 uppercase tracking-wider">Antrean Saat Ini Kosong</p>
+                <p className="text-[10px] font-black italic text-slate-400 uppercase tracking-wider">{isIndo ? "Antrean Saat Ini Kosong" : "Current Queue is Empty"}</p>
                 <p className="text-[9px] font-semibold text-slate-400">
-                  Kirim dukungan atau pesan slot mabar untuk antre di sini! ⚡
+                  {isIndo 
+                    ? "Kirim dukungan atau pesan slot mabar untuk antre di sini! ⚡" 
+                    : "Send support or order a mabar slot to queue here! ⚡"}
                 </p>
               </div>
             ) : (
@@ -97,7 +100,7 @@ export function QueueTab({ creatorDbData }: QueueTabProps) {
                   <div className="flex justify-between items-center p-3 bg-emerald-500/5 border border-emerald-500/30 rounded-2xl dark:bg-emerald-500/5">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-black italic text-emerald-500">01</span>
-                      <div className="flex flex-col">
+                      <div className="flex flex-col text-left">
                         <span className="text-xs font-black italic leading-none text-slate-800 dark:text-[#EAE9E4]">
                           {creatorDbData.mabar_queues[0].ingame_nickname || creatorDbData.mabar_queues[0].transaction?.sender_name || "Donatur"}
                         </span>
@@ -117,7 +120,7 @@ export function QueueTab({ creatorDbData }: QueueTabProps) {
                   const queueNum = String(idx + 2).padStart(2, "0")
                   return (
                     <div key={q.id} className="flex justify-between items-center p-3 bg-white border border-slate-200/80 rounded-2xl dark:bg-zinc-900 dark:border-zinc-800">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 text-left">
                         <span className="text-xs font-black italic text-slate-400">{queueNum}</span>
                         <div className="flex flex-col">
                           <span className="text-xs font-black italic leading-none text-slate-800 dark:text-[#EAE9E4]">
@@ -143,15 +146,15 @@ export function QueueTab({ creatorDbData }: QueueTabProps) {
       {/* 2. Testimonials feedback slider carousel */}
       {creatorDbData?.show_reviews !== false && (
         <div className="p-4 bg-slate-50/50 border border-slate-100 rounded-3xl space-y-3.5 dark:bg-zinc-950/20 dark:border-zinc-800">
-          <h3 className="text-xs font-black uppercase tracking-widest italic text-slate-600 dark:text-zinc-400 flex items-center gap-1.5">
-            <Trophy className="h-4 w-4 text-[#FFD551] fill-current animate-pulse" /> {t.publicProfile?.reviewTitle || "Pesan Dukungan Donatur"}
+          <h3 className="text-xs font-black uppercase tracking-widest italic text-slate-600 dark:text-zinc-400 flex items-center gap-1.5 text-left">
+            <Trophy className="h-4 w-4 text-[#FFD551] fill-current animate-pulse" /> {t.publicProfile?.reviewTitle || (isIndo ? "Pesan Dukungan Donatur" : "Donor Support Messages")}
           </h3>
 
-          <div className="relative h-[86px] overflow-hidden">
+          <div className="relative h-[86px] overflow-hidden text-left">
             {testimonials.length === 0 ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center space-y-1">
-                <p className="text-[10px] font-black italic text-slate-400 uppercase tracking-wider">Belum Ada Pesan Dukungan</p>
-                <p className="text-[9px] font-semibold text-slate-400">Dukung kreator dan tulis pesan dukungan pertama Anda! 💬</p>
+                <p className="text-[10px] font-black italic text-slate-400 uppercase tracking-wider">{isIndo ? "Belum Ada Pesan Dukungan" : "No Support Messages Yet"}</p>
+                <p className="text-[9px] font-semibold text-slate-400">{isIndo ? "Dukung kreator dan tulis pesan dukungan pertama Anda! 💬" : "Support the creator and write your first support message! 💬"}</p>
               </div>
             ) : (
               <AnimatePresence mode="wait">
@@ -169,7 +172,7 @@ export function QueueTab({ creatorDbData }: QueueTabProps) {
                   <div className="flex justify-between items-center pt-2 border-t border-slate-200/50 dark:border-zinc-800">
                     <div className="flex items-center gap-1.5">
                       <span className="text-[9.5px] font-black italic text-red-500">{testimonials[testiIndex].name}</span>
-                      <span className="text-[8.5px] font-bold text-slate-400 dark:text-zinc-600">• {testimonials[testiIndex].time}</span>
+                      <span className="text-[8.5px] font-bold text-slate-400 dark:text-zinc-650">• {testimonials[testiIndex].time}</span>
                     </div>
                     <div className="flex gap-0.5">
                       {Array.from({ length: testimonials[testiIndex].rating }).map((_, i) => (

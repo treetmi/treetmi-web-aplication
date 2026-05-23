@@ -21,6 +21,111 @@ exports.handleWebhook = async (req, res) => {
         }
       }
 
+      // Fetch Soundboard item if purchased
+      let soundboardItem = null;
+      if (transaction.soundboard_item_id) {
+        try {
+          const prisma = require('../config/prisma');
+          soundboardItem = await prisma.soundboardItem.findUnique({
+            where: { id: transaction.soundboard_item_id }
+          });
+        } catch (soundErr) {
+          console.warn('Failed to fetch soundboard item in webhook:', soundErr);
+        }
+      }
+
+      // Check Gacha settings
+      let gachaResult = null;
+      if (transaction.type === 'DONATION') {
+        try {
+          const prisma = require('../config/prisma');
+          const gachaSetting = await prisma.gachaSetting.findUnique({
+            where: { streamer_id: transaction.streamer_id }
+          });
+          const hasInteractiveMedia = transaction.mediashare_url || transaction.donation_media;
+          if (gachaSetting && gachaSetting.is_enabled && !hasInteractiveMedia && Number(transaction.gross_amount) >= Number(gachaSetting.min_donation)) {
+            const gachaItems = await prisma.gachaWheelItem.findMany({
+              where: { streamer_id: transaction.streamer_id }
+            });
+            if (gachaItems.length > 0) {
+              const totalWeight = gachaItems.reduce((sum, item) => sum + (item.weight || 1), 0);
+              let randomNum = Math.random() * totalWeight;
+              let selectedItem = gachaItems[0];
+              for (const item of gachaItems) {
+                randomNum -= (item.weight || 1);
+                if (randomNum <= 0) {
+                  selectedItem = item;
+                  break;
+                }
+              }
+              const loggedGacha = await prisma.gachaLog.create({
+                data: {
+                  streamer_id: transaction.streamer_id,
+                  donor_name: transaction.sender_name,
+                  amount: transaction.gross_amount,
+                  reward_name: selectedItem.name
+                }
+              });
+
+              // Auto Mabar Queue integration if reward name contains mabar/main bareng (case-insensitive)
+              const rewardNameLower = selectedItem.name.toLowerCase();
+              if (rewardNameLower.includes('mabar') || rewardNameLower.includes('main bareng') || rewardNameLower.includes('main game')) {
+                try {
+                  let slotsCount = 1;
+                  const match = selectedItem.name.match(/\d+/);
+                  if (match) {
+                    slotsCount = parseInt(match[0], 10);
+                  }
+
+                  // Get or create GamePackage
+                  let packageId;
+                  const activePackage = await prisma.gamePackage.findFirst({
+                    where: { streamer_id: transaction.streamer_id, status: 'ACTIVE' }
+                  });
+                  if (activePackage) {
+                    packageId = activePackage.id;
+                  } else {
+                    const newPackage = await prisma.gamePackage.create({
+                      data: {
+                        streamer_id: transaction.streamer_id,
+                        game_name: "Hadiah Gacha Wheel",
+                        price_per_slot: 0,
+                        status: "ACTIVE"
+                      }
+                    });
+                    packageId = newPackage.id;
+                  }
+
+                  // Create queue entry
+                  await prisma.mabarQueue.create({
+                    data: {
+                      transaction_id: transaction.id,
+                      package_id: packageId,
+                      ingame_nickname: transaction.sender_name || 'Gacha Winner',
+                      ingame_id: 'Gacha Winner',
+                      status: 'WAITING',
+                      slots_count: slotsCount
+                    }
+                  });
+                  console.log(`[Webhook] Auto Mabar queue entry created for Gacha win: ${selectedItem.name}`);
+                } catch (queueErr) {
+                  console.warn('Failed to auto create Mabar queue from Gacha reward in webhook:', queueErr);
+                }
+              }
+              
+              gachaResult = {
+                ...loggedGacha,
+                items: gachaItems,
+                duration_sec: gachaSetting.duration_sec,
+                winnerIndex: gachaItems.findIndex(item => item.id === selectedItem.id)
+              };
+            }
+          }
+        } catch (gachaErr) {
+          console.warn('Failed to process Gacha trigger in webhook:', gachaErr);
+        }
+      }
+
       // 1. Broadcast alert donasi/mabar / mediashare
       const donationMedia = transaction.donation_media;
       const isVideoMedia = donationMedia && ['YOUTUBE', 'TIKTOK', 'REELS'].includes(donationMedia.media_type);
@@ -34,10 +139,14 @@ exports.handleWebhook = async (req, res) => {
           message: transaction.message,
           mediashare_url: mediaUrl,
           donation_media: donationMedia || null,
+          gift: transaction.gift || null,
+          soundboard: soundboardItem || null,
+          gacha: gachaResult || null,
           timestamp: new Date()
         });
       } else {
-        const eventName = transaction.type === 'DONATION' ? 'alert:donation' : 'alert:mabar';
+        const isGacha = !!gachaResult;
+        const eventName = isGacha ? 'alert:gacha' : (transaction.type === 'DONATION' ? 'alert:donation' : 'alert:mabar');
         io.to(`alert:${transaction.streamer_id}`).emit(eventName, {
           id: transaction.id,
           sender_name: transaction.sender_name,
@@ -46,6 +155,9 @@ exports.handleWebhook = async (req, res) => {
           ingame_nickname: extraData.nickname || transaction.sender_name,
           ingame_id: extraData.ingame_id || '',
           donation_media: donationMedia || null,
+          gift: transaction.gift || null,
+          soundboard: soundboardItem || null,
+          gacha: gachaResult || null,
           timestamp: new Date()
         });
       }
@@ -144,4 +256,3 @@ exports.getDonorsOverlay = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-

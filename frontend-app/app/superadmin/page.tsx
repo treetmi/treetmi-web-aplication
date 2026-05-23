@@ -21,14 +21,21 @@ import OverviewTab from "./components/OverviewTab"
 import CreatorsTab from "./components/CreatorsTab"
 import WithdrawalsTab from "./components/WithdrawalsTab"
 import TransactionsTab from "./components/TransactionsTab"
+import TopCreatorsTab from "./components/TopCreatorsTab"
 import ProfileTab from "./components/ProfileTab"
 import SettingsTab from "./components/SettingsTab"
+import SystemConfigsTab from "./components/SystemConfigsTab"
+import WhatsappLogsTab from "./components/WhatsappLogsTab"
 import AvatarsTab from "./components/AvatarsTab"
 import RatesTab from "./components/RatesTab"
 import TicketsTab from "./components/TicketsTab"
 import PaymentChannelsTab from "./components/PaymentChannelsTab"
 import BadgesTab from "./components/BadgesTab"
 import PartnersTab from "./components/PartnersTab"
+import FilterWordsTab from "./components/FilterWordsTab"
+import GiftsTab from "./components/GiftsTab"
+import ReportsTab from "./components/ReportsTab"
+
 
 export default function SuperadminDashboard() {
   const router = useRouter()
@@ -49,6 +56,32 @@ export default function SuperadminDashboard() {
         setAdminUser(localStorage.getItem("admin_user") || "Administrator")
         setIsAuthenticated(true)
       }
+
+      // Intercept fetch calls to automatically attach the admin token
+      const originalFetch = window.fetch
+      window.fetch = async (input, init) => {
+        const token = localStorage.getItem("admin_token")
+        if (token) {
+          const url = typeof input === "string"
+            ? input
+            : (input instanceof URL ? input.href : input.url)
+
+          if (url.includes("/api/v1/")) {
+            const newInit = { ...init }
+            const headers = new Headers(newInit.headers || {})
+            if (!headers.has("Authorization")) {
+              headers.set("Authorization", `Bearer ${token}`)
+            }
+            newInit.headers = headers
+            return originalFetch(input, newInit)
+          }
+        }
+        return originalFetch(input, init)
+      }
+
+      return () => {
+        window.fetch = originalFetch
+      }
     }
   }, [router])
 
@@ -61,7 +94,7 @@ export default function SuperadminDashboard() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search)
       const tabParam = params.get("tab")
-      if (tabParam && ["overview", "creators", "withdrawals", "transactions", "profile", "avatars", "settings", "rates", "tickets", "payment_channels", "badges", "partners"].includes(tabParam)) {
+      if (tabParam && ["overview", "creators", "withdrawals", "transactions", "profile", "avatars", "settings", "rates", "tickets", "payment_channels", "badges", "partners", "filter_words", "gifts", "top_creators", "system_configs", "whatsapp_logs", "reports"].includes(tabParam)) {
         setActiveTab(tabParam)
       }
     }
@@ -73,7 +106,7 @@ export default function SuperadminDashboard() {
       window.history.pushState(null, "", `/superadmin?tab=${tab}`)
     }
   }
-  
+
   // Search state
   const [searchQuery, setSearchQuery] = useState("")
 
@@ -88,7 +121,8 @@ export default function SuperadminDashboard() {
   const [platformRevenue, setPlatformRevenue] = useState(0)
   const [activeDonationFee, setActiveDonationFee] = useState(5.00)
   const [activeMabarFee, setActiveMabarFee] = useState(8.00)
-  
+  const [activeGiftFee, setActiveGiftFee] = useState(10.00)
+
   // Creators list (fetched from DB)
   const [creators, setCreators] = useState<any[]>([])
 
@@ -106,17 +140,21 @@ export default function SuperadminDashboard() {
     try {
       // 0. Fetch active fee settings from backend
       let activeDonationFee = 5.00
-      let activeMabarFee = 8.05
+      let activeMabarFee = 8.00
+      let activeGiftFee = 10.00
       try {
         const settingsRes = await fetch(ADMIN_API.settings)
         const settingsJson = await settingsRes.json()
         if (settingsJson.success && settingsJson.data) {
           const dFee = settingsJson.data.feeDonation !== undefined ? parseFloat(settingsJson.data.feeDonation) : 5.00
           const mFee = settingsJson.data.feeMabar !== undefined ? parseFloat(settingsJson.data.feeMabar) : 8.00
+          const gFee = settingsJson.data.feeGift !== undefined ? parseFloat(settingsJson.data.feeGift) : 10.00
           setActiveDonationFee(dFee)
           setActiveMabarFee(mFee)
+          setActiveGiftFee(gFee)
           activeDonationFee = dFee
           activeMabarFee = mFee
+          activeGiftFee = gFee
         }
       } catch (err) {
         console.error("Gagal memuat persentase komisi aktif, menggunakan fallback default:", err)
@@ -158,22 +196,32 @@ export default function SuperadminDashboard() {
       const transactionsJson = await transactionsRes.json()
       if (transactionsJson.success) {
         const mappedTransactions = transactionsJson.data.map((t: any) => {
-          const isMabar = t.type === "MABAR"
-          const feePercent = isMabar ? activeMabarFee : activeDonationFee
+          const rawType = t.raw_type || t.type
+          const feePercent = rawType === "MABAR"
+            ? activeMabarFee
+            : (rawType === "GIFT" ? activeGiftFee : activeDonationFee)
           const calculatedFee = t.amount * (feePercent / 100)
           const calculatedNet = t.amount - calculatedFee
 
           return {
             id: t.id,
+            reference_id: t.reference_id,
             sender: t.sender,
             creator: t.creator,
             creator_avatar: t.creator_avatar,
             amount: t.amount,
             fee: calculatedFee,
             net: calculatedNet,
-            type: isMabar ? `Mabar (${feePercent}%)` : `Donasi (${feePercent}%)`,
+            type: rawType === "MABAR"
+              ? `Mabar (${feePercent}%)`
+              : (rawType === "GIFT"
+                ? `Gift (${feePercent}%)`
+                : (rawType === "GACHA" ? `Gacha (${feePercent}%)` : `Donasi (${feePercent}%)`)),
+            rawType: rawType,
             status: t.status,
-            time: t.date
+            message: t.message,
+            time: t.date,
+            gift_name: t.gift_name
           }
         })
         setTransactions(mappedTransactions)
@@ -548,7 +596,7 @@ export default function SuperadminDashboard() {
   }
 
   // Filtering creators based on search query
-  const filteredCreators = creators.filter(c => 
+  const filteredCreators = creators.filter(c =>
     c.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.role.toLowerCase().includes(searchQuery.toLowerCase())
@@ -567,11 +615,11 @@ export default function SuperadminDashboard() {
     <main className="min-h-screen bg-[#F8F7F3] dark:bg-[#0B0B0A] text-[#1A1A19] dark:text-[#EAE9E4] transition-colors duration-200 flex flex-col">
 
       <div className="flex flex-1 w-full relative">
-        
+
         {/* ================= LEFT SIDEBAR (STICKY - BENTO SLEEK) ================= */}
         {/* Mobile Sidebar Dim Backdrop Overlay */}
         {isSidebarOpen && (
-          <div 
+          <div
             className="fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity duration-300"
             onClick={() => setIsSidebarOpen(false)}
           />
@@ -581,7 +629,7 @@ export default function SuperadminDashboard() {
           fixed inset-y-0 left-0 z-50 transform lg:transform-none lg:static lg:flex flex-col shrink-0 h-full lg:h-auto lg:self-stretch transition-transform duration-300 ease-in-out
           ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         `}>
-          <SidebarNav 
+          <SidebarNav
             activeTab={activeTab}
             handleTabChange={(tab) => {
               handleTabChange(tab)
@@ -610,9 +658,9 @@ export default function SuperadminDashboard() {
 
         {/* ================= MAIN CONTENT AREA ================= */}
         <div className="flex-1 flex flex-col min-w-0">
-          
+
           {/* ================= INTEGRATED SaaS HEADER (HAIRLINE BORDERS) ================= */}
-          <Header 
+          <Header
             activeTab={activeTab}
             adminUser={adminUser}
             handleAdminLogout={handleAdminLogout}
@@ -624,7 +672,7 @@ export default function SuperadminDashboard() {
 
           {/* ================= MAIN PANEL ================= */}
           <div className="flex-1 p-4 md:p-8 overflow-y-auto w-full">
-            
+
             {/* HEADER TOP TITLE */}
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
               <div>
@@ -638,10 +686,16 @@ export default function SuperadminDashboard() {
                   {activeTab === "profile" && "Pengaturan Profil Superadmin"}
                   {activeTab === "avatars" && "Manajemen Master Avatar"}
                   {activeTab === "settings" && "Konfigurasi Website & Google SEO"}
+                  {activeTab === "system_configs" && "Konfigurasi Gateway & Komisi"}
+                  {activeTab === "whatsapp_logs" && "Log Pengiriman Alarm WhatsApp"}
+                  {activeTab === "reports" && "Pusat Laporan & Aduan Kreator"}
                   {activeTab === "rates" && "Konfigurasi Kurs Mata Uang (Exchange Rates)"}
                   {activeTab === "payment_channels" && "Manajemen Metode Pembayaran Platform"}
                   {activeTab === "badges" && "Manajemen Lencana Kepercayaan (Trust Badges)"}
                   {activeTab === "partners" && "Manajemen Partner & Brand Mitra"}
+                  {activeTab === "filter_words" && "Filter Kata Terlarang (Judi & SARA)"}
+                  {activeTab === "gifts" && "Manajemen Sistem Gift Animasi"}
+                  {activeTab === "top_creators" && "Peringkat Top Kreator Teraktif"}
                 </h1>
                 <p className="text-xs text-slate-400 dark:text-zinc-400 tracking-wider font-black italic mt-0.5">
                   {activeTab === "overview" && "Statistik perputaran dana dan volume transaksi platform"}
@@ -652,17 +706,23 @@ export default function SuperadminDashboard() {
                   {activeTab === "profile" && "Amankan kredensial pemilik platform dan perbarui kunci akses"}
                   {activeTab === "avatars" && "Tambah, edit, dan hapus koleksi gambar avatar untuk profil user baru"}
                   {activeTab === "settings" && "Kelola brand logo teks, tab favicon icon, dan tag meta SEO"}
+                  {activeTab === "system_configs" && "Kelola parameter sensitif, kredensial payment API gateway, integrasi siaran WhatsApp, dan sistem komisi bagi hasil platform"}
+                  {activeTab === "whatsapp_logs" && "Riwayat lengkap siaran notifikasi alarm ketika streamer memulai siaran langsung (live streaming) ke penggemar"}
+                  {activeTab === "reports" && "Validasi aduan dan tanggapan dari viewer, investigasi pelanggaran konten, dan lakukan tindakan moderasi/suspensi langsung"}
                   {activeTab === "rates" && "Atur nilai konversi mata uang asing terhadap mata uang dasar rupiah"}
                   {activeTab === "payment_channels" && "Unggah logo bank/e-wallet, atur biaya transfer, dan toggle status aktif"}
                   {activeTab === "badges" && "Atur nama lencana, syarat minimal supporter unik, raw SVG, dan visual styling"}
                   {activeTab === "partners" && "Kelola logo partner, tautan eksternal, urutan tayang, dan visibilitas footer"}
+                  {activeTab === "filter_words" && "Kelola database kata sensor judi online dan profanitas secara terpusat"}
+                  {activeTab === "gifts" && "Kelola catalog gift global dan persentase komisi gift"}
+                  {activeTab === "top_creators" && "Peringkat kreator teraktif berdasarkan total volume dukungan (GTV) dan transaksi"}
                 </p>
               </div>
             </div>
 
             {/* ================= MODULAR TABS ================= */}
             {activeTab === "overview" && (
-              <OverviewTab 
+              <OverviewTab
                 totalGtv={totalGtv}
                 platformRevenue={platformRevenue}
                 creators={creators}
@@ -674,7 +734,7 @@ export default function SuperadminDashboard() {
             )}
 
             {activeTab === "creators" && (
-              <CreatorsTab 
+              <CreatorsTab
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
                 filteredCreators={filteredCreators}
@@ -699,20 +759,28 @@ export default function SuperadminDashboard() {
             )}
 
             {activeTab === "withdrawals" && (
-              <WithdrawalsTab 
+              <WithdrawalsTab
                 withdrawals={withdrawals}
                 triggerWithdrawalConfirm={triggerWithdrawalConfirm}
               />
             )}
 
             {activeTab === "transactions" && (
-              <TransactionsTab 
+              <TransactionsTab
+                transactions={transactions}
+                creators={creators}
+              />
+            )}
+
+            {activeTab === "top_creators" && (
+              <TopCreatorsTab
+                creators={creators}
                 transactions={transactions}
               />
             )}
 
             {activeTab === "profile" && (
-              <ProfileTab 
+              <ProfileTab
                 adminUser={adminUser}
                 setAdminUser={setAdminUser}
               />
@@ -724,6 +792,14 @@ export default function SuperadminDashboard() {
 
             {activeTab === "settings" && (
               <SettingsTab />
+            )}
+
+            {activeTab === "system_configs" && (
+              <SystemConfigsTab />
+            )}
+
+            {activeTab === "whatsapp_logs" && (
+              <WhatsappLogsTab />
             )}
 
             {activeTab === "rates" && (
@@ -744,6 +820,18 @@ export default function SuperadminDashboard() {
 
             {activeTab === "partners" && (
               <PartnersTab />
+            )}
+
+            {activeTab === "filter_words" && (
+              <FilterWordsTab />
+            )}
+
+            {activeTab === "gifts" && (
+              <GiftsTab />
+            )}
+
+            {activeTab === "reports" && (
+              <ReportsTab />
             )}
 
             {/* ================= GLOBAL FLOATING MODALS ================= */}
@@ -805,37 +893,37 @@ export default function SuperadminDashboard() {
 
                   <div className="space-y-2">
                     <Label className="text-xs font-black italic text-slate-500">Username Kreator</Label>
-                    <Input 
-                      required 
-                      value={editUsername} 
+                    <Input
+                      required
+                      value={editUsername}
                       onChange={(e) => setEditUsername(e.target.value)}
                       className="h-11 border border-slate-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900 text-black dark:text-white font-bold"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-xs font-black italic text-slate-500">Alamat Email</Label>
-                    <Input 
+                    <Input
                       type="email"
-                      required 
-                      value={editEmail} 
+                      required
+                      value={editEmail}
                       onChange={(e) => setEditEmail(e.target.value)}
                       className="h-11 border border-slate-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900 text-black dark:text-white font-bold"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-xs font-black italic text-slate-500">Peran Kustom / Label Peran (Role)</Label>
-                    <Input 
-                      placeholder="Contoh: VERIFIED STREAMER & KREATOR" 
-                      value={editRole} 
+                    <Input
+                      placeholder="Contoh: VERIFIED STREAMER & KREATOR"
+                      value={editRole}
                       onChange={(e) => setEditRole(e.target.value)}
                       className="h-11 border border-slate-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900 text-black dark:text-white font-bold"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-xs font-black italic text-slate-500">Atur Saldo Wallet (Rp)</Label>
-                    <Input 
+                    <Input
                       type="text"
-                      value={formatNumberInput(editBalance)} 
+                      value={formatNumberInput(editBalance)}
                       onChange={(e) => setEditBalance(String(parseNumberInput(e.target.value)))}
                       className="h-11 border border-slate-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900 text-black dark:text-white font-bold"
                     />
@@ -925,11 +1013,10 @@ export default function SuperadminDashboard() {
                               handleWithdrawalAction(confirmWithdrawId, confirmWithdrawAction)
                               setIsConfirmWithdrawOpen(false)
                             }}
-                            className={`h-12 flex-1 rounded-2xl font-black italic text-xs transition-all cursor-pointer ${
-                              confirmWithdrawAction === "SUCCESS"
+                            className={`h-12 flex-1 rounded-2xl font-black italic text-xs transition-all cursor-pointer ${confirmWithdrawAction === "SUCCESS"
                                 ? "bg-black text-[#FFD551] hover:bg-slate-900 disabled:opacity-30 disabled:bg-slate-200 disabled:text-slate-400"
                                 : "bg-red-500 text-white hover:bg-red-600 disabled:opacity-30 disabled:bg-slate-200 disabled:text-slate-400"
-                            }`}
+                              }`}
                           >
                             {confirmWithdrawAction === "SUCCESS" ? "Proses Transfer" : "Proses Tolak"}
                           </Button>
@@ -988,12 +1075,12 @@ export default function SuperadminDashboard() {
                         <span className="text-xs font-bold text-slate-700 dark:text-zinc-300 block mt-1">
                           {verifyReviewCreator.verification_submitted_at
                             ? new Date(verifyReviewCreator.verification_submitted_at).toLocaleString("id-ID", {
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit"
-                              }) + " WIB"
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit"
+                            }) + " WIB"
                             : "-"}
                         </span>
                       </div>
@@ -1022,15 +1109,15 @@ export default function SuperadminDashboard() {
                       <span className="block text-[10px] font-black uppercase tracking-wider text-slate-400">Screenshot Bukti Kepemilikan</span>
                       {verifyReviewCreator.verification_screenshot_url ? (
                         <div className="relative group rounded-2xl overflow-hidden border border-slate-250 dark:border-zinc-800 shadow-md bg-black max-h-[300px] flex items-center justify-center">
-                          <img 
-                            src={verifyReviewCreator.verification_screenshot_url} 
-                            alt="Bukti Verifikasi" 
-                            className="w-full h-auto max-h-[300px] object-contain transition-all duration-300 group-hover:scale-102" 
+                          <img
+                            src={verifyReviewCreator.verification_screenshot_url}
+                            alt="Bukti Verifikasi"
+                            className="w-full h-auto max-h-[300px] object-contain transition-all duration-300 group-hover:scale-102"
                           />
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-3">
-                            <a 
-                              href={verifyReviewCreator.verification_screenshot_url} 
-                              target="_blank" 
+                            <a
+                              href={verifyReviewCreator.verification_screenshot_url}
+                              target="_blank"
                               rel="noopener noreferrer"
                               className="px-4 py-2 bg-[#FFD551] text-black font-black italic text-xs rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
                             >

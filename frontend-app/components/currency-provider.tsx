@@ -1,7 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect } from "react"
-import { ADMIN_API } from "@/lib/api"
+import { PUBLIC_API } from "@/lib/api"
 
 export type CurrencyCode = "IDR" | "USD" | "MYR" | "SGD" | "PHP" | "THB"
 
@@ -56,8 +56,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
 
     const fetchRates = async () => {
       try {
-        const apiBase = ADMIN_API.settings.replace("/admin/settings", "")
-        const res = await fetch(`${apiBase}/admin/settings`)
+        const res = await fetch(PUBLIC_API.publicSettings)
         const json = await res.json()
         if (json.success && json.data && json.data.rates) {
           const loadedRates = {
